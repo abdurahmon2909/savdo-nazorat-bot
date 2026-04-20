@@ -17,6 +17,7 @@ from app.services.customers import (
     get_customer_by_linked_telegram_id,
     get_customer_by_phone,
 )
+from app.services.order_requests import list_customer_order_requests
 from app.services.orders import list_customer_orders, list_customer_open_orders
 from app.services.users import create_or_update_user, get_user_by_telegram_id
 
@@ -71,7 +72,7 @@ async def contact(message: Message, session: AsyncSession):
 
     r = role(u.id)
 
-    user = await create_or_update_user(
+    await create_or_update_user(
         session,
         u.id,
         u.full_name,
@@ -156,25 +157,38 @@ async def my_orders(message: Message, session: AsyncSession):
         return
 
     orders = await list_customer_orders(session, cust.id)
+    requests = await list_customer_order_requests(session, u.id, limit=20)
 
-    if not orders:
+    if not orders and not requests:
         await message.answer("Buyurtmalar yo'q")
         return
 
     out = [f"{cust.full_name} buyurtmalari:\n"]
 
-    for o in orders:
-        t = Decimal(str(o.total_amount))
-        p = Decimal(str(o.paid_amount))
-        l = t - p
+    if requests:
+        out.append("So'rovlar:")
+        for req in requests:
+            out.append(
+                f"So'rov ID: {req.id}\n"
+                f"Jami: {fmt(req.total_amount)} so'm\n"
+                f"To'lov turi: {req.payment_type}\n"
+                f"Holat: {req.status}\n"
+            )
 
-        out.append(
-            f"Buyurtma ID: {o.id}\n"
-            f"Jami: {fmt(t)} so'm\n"
-            f"To'langan: {fmt(p)} so'm\n"
-            f"Qoldiq: {fmt(l)} so'm\n"
-            f"Holat: {o.status}\n"
-        )
+    if orders:
+        out.append("Tasdiqlangan buyurtmalar:")
+        for o in orders:
+            t = Decimal(str(o.total_amount))
+            p = Decimal(str(o.paid_amount))
+            l = t - p
+
+            out.append(
+                f"Buyurtma ID: {o.id}\n"
+                f"Jami: {fmt(t)} so'm\n"
+                f"To'langan: {fmt(p)} so'm\n"
+                f"Qoldiq: {fmt(l)} so'm\n"
+                f"Holat: {o.status}\n"
+            )
 
     await message.answer("\n".join(out))
 

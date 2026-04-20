@@ -19,6 +19,7 @@ def contact_keyboard() -> ReplyKeyboardMarkup:
 def main_menu_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
+            [KeyboardButton(text="🛍 Buyurtma berish")],
             [KeyboardButton(text="💳 Mening qarzim")],
             [KeyboardButton(text="📦 Buyurtmalarim")],
             [KeyboardButton(text="☎️ Aloqa")],
@@ -31,6 +32,7 @@ def admin_menu_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="🛒 Yangi savdo")],
+            [KeyboardButton(text="📥 Buyurtma so'rovlari")],
             [KeyboardButton(text="💰 To'lov kiritish")],
             [KeyboardButton(text="👥 Mijozlar")],
             [KeyboardButton(text="📦 Mahsulotlar")],
@@ -38,6 +40,7 @@ def admin_menu_keyboard() -> ReplyKeyboardMarkup:
             [KeyboardButton(text="📚 Buyurtmalar tarixi")],
             [KeyboardButton(text="🧮 Qoldiqni to'g'rilash")],
             [KeyboardButton(text="📊 Hisobotlar")],
+            [KeyboardButton(text="⏰ Kechikkan qarzlar")],
         ],
         resize_keyboard=True,
     )
