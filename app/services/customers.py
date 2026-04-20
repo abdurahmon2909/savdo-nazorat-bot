@@ -39,6 +39,44 @@ async def get_customer_by_phone(session: AsyncSession, phone: str) -> Customer |
     return result.scalar_one_or_none()
 
 
+async def get_customer_by_linked_telegram_id(
+    session: AsyncSession,
+    telegram_id: int,
+) -> Customer | None:
+    result = await session.execute(
+        select(Customer).where(Customer.linked_telegram_id == telegram_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def link_customer_to_telegram(
+    session: AsyncSession,
+    customer: Customer,
+    telegram_id: int,
+) -> Customer:
+    customer.linked_telegram_id = telegram_id
+    await session.commit()
+    await session.refresh(customer)
+    return customer
+
+
+async def auto_link_customer_by_phone(
+    session: AsyncSession,
+    phone: str,
+    telegram_id: int,
+) -> Customer | None:
+    customer = await get_customer_by_phone(session, phone)
+    if customer is None:
+        return None
+
+    if customer.linked_telegram_id != telegram_id:
+        customer.linked_telegram_id = telegram_id
+        await session.commit()
+        await session.refresh(customer)
+
+    return customer
+
+
 async def list_customers(session: AsyncSession, limit: int = 20) -> list[Customer]:
     result = await session.execute(
         select(Customer)

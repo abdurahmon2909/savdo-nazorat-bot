@@ -12,18 +12,22 @@ from app.keyboards.reply import (
     main_menu_keyboard,
     remove_keyboard,
 )
-from app.services.customers import get_customer_by_phone
+from app.services.customers import (
+    auto_link_customer_by_phone,
+    get_customer_by_linked_telegram_id,
+    get_customer_by_phone,
+)
 from app.services.orders import list_customer_orders, list_customer_open_orders
 from app.services.users import create_or_update_user, get_user_by_telegram_id
 
 router = Router()
 
 
-def role(uid):
+def role(uid: int) -> str:
     return "admin" if uid in settings.admin_ids else "mijoz"
 
 
-def fmt(x):
+def fmt(x) -> str:
     t = format(Decimal(str(x)), "f")
     return t.rstrip("0").rstrip(".") if "." in t else t
 
@@ -46,6 +50,9 @@ async def start(message: Message, session: AsyncSession):
             ex.phone,
             r,
         )
+
+        if r != "admin":
+            await auto_link_customer_by_phone(session, ex.phone, u.id)
 
         kb = admin_menu_keyboard() if r == "admin" else main_menu_keyboard()
         await message.answer("Xush kelibsiz", reply_markup=kb)
@@ -73,6 +80,9 @@ async def contact(message: Message, session: AsyncSession):
         r,
     )
 
+    if r != "admin":
+        await auto_link_customer_by_phone(session, c.phone_number, u.id)
+
     await message.answer("Ro'yxatdan o'tdingiz", reply_markup=remove_keyboard())
 
     kb = admin_menu_keyboard() if r == "admin" else main_menu_keyboard()
@@ -87,10 +97,15 @@ async def my_debt(message: Message, session: AsyncSession):
 
     user = await get_user_by_telegram_id(session, u.id)
     if not user or not user.phone:
+        await message.answer("Avval ro'yxatdan o'ting.")
         return
 
-    cust = await get_customer_by_phone(session, user.phone)
+    cust = await get_customer_by_linked_telegram_id(session, u.id)
+    if cust is None:
+        cust = await get_customer_by_phone(session, user.phone)
+
     if not cust:
+        await message.answer("Siz uchun mijoz kartasi topilmadi.")
         return
 
     orders = await list_customer_open_orders(session, cust.id)
@@ -100,7 +115,7 @@ async def my_debt(message: Message, session: AsyncSession):
         return
 
     total = Decimal("0")
-    out = []
+    out = [f"{cust.full_name} uchun ochiq qarzlar:\n"]
 
     for o in orders:
         t = Decimal(str(o.total_amount))
@@ -108,7 +123,13 @@ async def my_debt(message: Message, session: AsyncSession):
         l = t - p
         total += l
 
-        out.append(f"ID:{o.id} Qoldiq:{fmt(l)}")
+        out.append(
+            f"Buyurtma ID: {o.id}\n"
+            f"Jami: {fmt(t)} so'm\n"
+            f"To'langan: {fmt(p)} so'm\n"
+            f"Qoldiq: {fmt(l)} so'm\n"
+            f"Holat: {o.status}\n"
+        )
 
     out.append(f"Jami qarz: {fmt(total)} so'm")
 
@@ -123,10 +144,15 @@ async def my_orders(message: Message, session: AsyncSession):
 
     user = await get_user_by_telegram_id(session, u.id)
     if not user or not user.phone:
+        await message.answer("Avval ro'yxatdan o'ting.")
         return
 
-    cust = await get_customer_by_phone(session, user.phone)
+    cust = await get_customer_by_linked_telegram_id(session, u.id)
+    if cust is None:
+        cust = await get_customer_by_phone(session, user.phone)
+
     if not cust:
+        await message.answer("Siz uchun mijoz topilmadi.")
         return
 
     orders = await list_customer_orders(session, cust.id)
@@ -135,13 +161,32 @@ async def my_orders(message: Message, session: AsyncSession):
         await message.answer("Buyurtmalar yo'q")
         return
 
-    out = []
+    out = [f"{cust.full_name} buyurtmalari:\n"]
 
     for o in orders:
         t = Decimal(str(o.total_amount))
         p = Decimal(str(o.paid_amount))
         l = t - p
 
-        out.append(f"ID:{o.id} Jami:{fmt(t)} Qoldiq:{fmt(l)}")
+        out.append(
+            f"Buyurtma ID: {o.id}\n"
+            f"Jami: {fmt(t)} so'm\n"
+            f"To'langan: {fmt(p)} so'm\n"
+            f"Qoldiq: {fmt(l)} so'm\n"
+            f"Holat: {o.status}\n"
+        )
 
     await message.answer("\n".join(out))
+
+
+@router.message(F.text == "☎️ Aloqa")
+async def contact_info(message: Message):
+    await message.answer(
+        "Aloqa uchun admin bilan bog'laning.\n"
+        "Keyingi bosqichda bu yerga aniq aloqa ma'lumoti qo'shamiz."
+    )
+
+
+@router.message(F.text == "📊 Hisobotlar")
+async def reports_stub(message: Message):
+    await message.answer("Hozircha bu bo'lim tayyor emas.")
