@@ -31,16 +31,7 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
 def admin_menu_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="🛒 Yangi savdo")],
-            [KeyboardButton(text="📥 Buyurtma so'rovlari")],
-            [KeyboardButton(text="💰 To'lov kiritish")],
-            [KeyboardButton(text="👥 Mijozlar")],
-            [KeyboardButton(text="📦 Mahsulotlar")],
-            [KeyboardButton(text="📉 Qarzdorlar")],
-            [KeyboardButton(text="📚 Buyurtmalar tarixi")],
-            [KeyboardButton(text="🧮 Qoldiqni to'g'rilash")],
-            [KeyboardButton(text="📊 Hisobotlar")],
-            [KeyboardButton(text="⏰ Kechikkan qarzlar")],
+            [KeyboardButton(text="🔄 Admin panelni ochish")],
         ],
         resize_keyboard=True,
     )

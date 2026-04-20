@@ -6,6 +6,7 @@ from aiogram.types import Contact, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.keyboards.admin_panel_inline import admin_main_keyboard
 from app.keyboards.reply import (
     admin_menu_keyboard,
     contact_keyboard,
@@ -54,9 +55,10 @@ async def start(message: Message, session: AsyncSession):
 
         if r != "admin":
             await auto_link_customer_by_phone(session, ex.phone, u.id)
-
-        kb = admin_menu_keyboard() if r == "admin" else main_menu_keyboard()
-        await message.answer("Xush kelibsiz", reply_markup=kb)
+            await message.answer("Xush kelibsiz", reply_markup=main_menu_keyboard())
+        else:
+            await message.answer("Xush kelibsiz", reply_markup=admin_menu_keyboard())
+            await message.answer("Admin panel:", reply_markup=admin_main_keyboard())
         return
 
     await message.answer("Raqamingizni yuboring", reply_markup=contact_keyboard())
@@ -83,11 +85,11 @@ async def contact(message: Message, session: AsyncSession):
 
     if r != "admin":
         await auto_link_customer_by_phone(session, c.phone_number, u.id)
-
-    await message.answer("Ro'yxatdan o'tdingiz", reply_markup=remove_keyboard())
-
-    kb = admin_menu_keyboard() if r == "admin" else main_menu_keyboard()
-    await message.answer("Menu:", reply_markup=kb)
+        await message.answer("Ro'yxatdan o'tdingiz", reply_markup=remove_keyboard())
+        await message.answer("Menu:", reply_markup=main_menu_keyboard())
+    else:
+        await message.answer("Ro'yxatdan o'tdingiz", reply_markup=remove_keyboard())
+        await message.answer("Admin panel:", reply_markup=admin_main_keyboard())
 
 
 @router.message(F.text == "💳 Mening qarzim")

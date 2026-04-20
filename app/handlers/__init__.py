@@ -7,6 +7,7 @@ from app.handlers.admin_order_inline import router as admin_order_inline_router
 from app.handlers.admin_order_requests import router as admin_order_requests_router
 from app.handlers.admin_orders import router as admin_orders_router
 from app.handlers.admin_overdue import router as admin_overdue_router
+from app.handlers.admin_panel_inline import router as admin_panel_inline_router
 from app.handlers.admin_payments import router as admin_payments_router
 from app.handlers.admin_products import router as admin_products_router
 from app.handlers.admin_reports import router as admin_reports_router
@@ -30,6 +31,7 @@ def setup_routers() -> Router:
     r.include_router(admin_stock_router)
     r.include_router(admin_reports_router)
     r.include_router(admin_overdue_router)
+    r.include_router(admin_panel_inline_router)
     r.include_router(customer_catalog_router)
 
     return r
