@@ -1,8 +1,8 @@
 from aiogram import Router
 
 from app.handlers.admin_customers import router as admin_customers_router
-from app.handlers.admin_products import router as admin_products_router
 from app.handlers.admin_orders import router as admin_orders_router
+from app.handlers.admin_products import router as admin_products_router
 from app.handlers.start import router as start_router
 
 

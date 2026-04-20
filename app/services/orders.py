@@ -11,15 +11,19 @@ async def create_order(
     customer_id: int,
     created_by: int,
     items: list[dict],
+    payment_type: str,
 ) -> Order:
     total = sum(Decimal(str(item["quantity"])) * Decimal(str(item["price"])) for item in items)
+
+    paid_amount = total if payment_type == "naqd" else Decimal("0")
+    status = "paid" if payment_type == "naqd" else "unpaid"
 
     order = Order(
         customer_id=customer_id,
         created_by=created_by,
         total_amount=total,
-        paid_amount=Decimal("0"),
-        status="pending",
+        paid_amount=paid_amount,
+        status=status,
     )
 
     session.add(order)

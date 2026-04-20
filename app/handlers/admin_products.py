@@ -16,7 +16,7 @@ from app.services.products import (
     list_products,
     search_products,
 )
-from app.states.product import AddProductState
+from app.states.product_state import AddProductState
 
 router = Router()
 
@@ -107,7 +107,7 @@ async def add_product_name(
 
 @router.message(AddProductState.category)
 async def add_product_category(message: Message, state: FSMContext):
-    category = message.text.strip()
+    category = (message.text or "").strip()
     await state.update_data(category=None if category == "-" else category)
 
     await state.set_state(AddProductState.unit)
@@ -116,7 +116,7 @@ async def add_product_category(message: Message, state: FSMContext):
 
 @router.message(AddProductState.unit)
 async def add_product_unit(message: Message, state: FSMContext):
-    unit = message.text.strip()
+    unit = (message.text or "").strip()
 
     await state.update_data(unit=unit)
     await state.set_state(AddProductState.sell_price)
@@ -126,7 +126,7 @@ async def add_product_unit(message: Message, state: FSMContext):
 
 @router.message(AddProductState.sell_price)
 async def add_product_sell_price(message: Message, state: FSMContext):
-    price = parse_decimal(message.text)
+    price = parse_decimal(message.text or "")
 
     if price is None:
         await message.answer("Narx noto‘g‘ri.")
@@ -140,7 +140,7 @@ async def add_product_sell_price(message: Message, state: FSMContext):
 
 @router.message(AddProductState.cost_price)
 async def add_product_cost_price(message: Message, state: FSMContext):
-    text = message.text.strip()
+    text = (message.text or "").strip()
 
     if text == "-":
         await state.update_data(cost_price=None)
@@ -161,7 +161,7 @@ async def add_product_stock_quantity(
     state: FSMContext,
     session: AsyncSession,
 ):
-    qty = parse_decimal(message.text)
+    qty = parse_decimal(message.text or "")
 
     if qty is None:
         await message.answer("Noto‘g‘ri son.")
@@ -181,7 +181,6 @@ async def add_product_stock_quantity(
 
     await state.clear()
 
-    # 🔥 MUHIM FIX (xato shu yerda edi)
     tannarx_text = (
         f"{format_number(product.cost_price)} so'm"
         if product.cost_price is not None
@@ -235,7 +234,7 @@ async def search_product_handler(
     if not data.get("search"):
         return
 
-    products = await search_products(session, message.text)
+    products = await search_products(session, message.text or "")
 
     if not products:
         await message.answer("Topilmadi")

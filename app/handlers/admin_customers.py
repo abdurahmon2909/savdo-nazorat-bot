@@ -15,7 +15,7 @@ from app.services.customers import (
     list_customers,
     search_customers,
 )
-from app.states.customer import AddCustomerState
+from app.states.customer_state import AddCustomerState
 
 router = Router()
 

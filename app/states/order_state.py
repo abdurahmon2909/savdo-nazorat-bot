@@ -5,4 +5,5 @@ class CreateOrderState(StatesGroup):
     customer = State()
     product = State()
     quantity = State()
+    payment_type = State()
     confirm = State()

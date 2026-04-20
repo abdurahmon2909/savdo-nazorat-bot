@@ -30,11 +30,29 @@ async def create_product(
     return product
 
 
+async def get_product_by_id(session: AsyncSession, product_id: int) -> Product | None:
+    result = await session.execute(
+        select(Product).where(Product.id == product_id)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_product_by_name(session: AsyncSession, name: str) -> Product | None:
     result = await session.execute(
         select(Product).where(Product.name == name.strip())
     )
     return result.scalar_one_or_none()
+
+
+async def reduce_product_stock(
+    session: AsyncSession,
+    product: Product,
+    quantity: Decimal,
+) -> Product:
+    product.stock_quantity = Decimal(str(product.stock_quantity)) - quantity
+    await session.commit()
+    await session.refresh(product)
+    return product
 
 
 async def list_products(session: AsyncSession, limit: int = 20) -> list[Product]:

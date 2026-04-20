@@ -25,6 +25,13 @@ async def create_customer(
     return customer
 
 
+async def get_customer_by_id(session: AsyncSession, customer_id: int) -> Customer | None:
+    result = await session.execute(
+        select(Customer).where(Customer.id == customer_id)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_customer_by_phone(session: AsyncSession, phone: str) -> Customer | None:
     result = await session.execute(
         select(Customer).where(Customer.phone == phone.strip())
