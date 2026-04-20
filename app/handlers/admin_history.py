@@ -15,37 +15,40 @@ def is_admin(message: Message) -> bool:
     return bool(message.from_user and message.from_user.id in settings.admin_ids)
 
 
-def format_number(value: Decimal | float | int | str) -> str:
+def format_number(value):
     text = format(Decimal(str(value)), "f")
     if "." in text:
         text = text.rstrip("0").rstrip(".")
     return text
 
 
+# ⚠️ MUHIM: text EXACT mos bo‘lishi kerak
 @router.message(F.text == "📚 Buyurtmalar tarixi")
-async def show_order_history(message: Message, session: AsyncSession) -> None:
+async def show_order_history(message: Message, session: AsyncSession):
     if not is_admin(message):
         return
 
     orders = await list_recent_orders(session, limit=50)
+
     if not orders:
         await message.answer("Hozircha buyurtmalar mavjud emas.")
         return
 
-    lines = ["So'nggi buyurtmalar:\n"]
+    lines = ["📚 So‘nggi buyurtmalar:\n"]
+
     for order in orders:
         customer = await get_customer_by_id(session, int(order.customer_id))
-        customer_name = customer.full_name if customer else "Noma'lum mijoz"
+        name = customer.full_name if customer else "Noma'lum"
 
         total = Decimal(str(order.total_amount))
         paid = Decimal(str(order.paid_amount))
         left = total - paid
 
         lines.append(
-            f"Buyurtma ID: {order.id}\n"
-            f"Mijoz: {customer_name}\n"
+            f"ID: {order.id}\n"
+            f"Mijoz: {name}\n"
             f"Jami: {format_number(total)} so'm\n"
-            f"To'langan: {format_number(paid)} so'm\n"
+            f"To‘langan: {format_number(paid)} so'm\n"
             f"Qoldiq: {format_number(left)} so'm\n"
             f"Holat: {order.status}\n"
         )
