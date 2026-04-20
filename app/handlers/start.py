@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 
 from aiogram import F, Router
@@ -32,6 +33,16 @@ def role(uid: int) -> str:
 def fmt(x) -> str:
     t = format(Decimal(str(x)), "f")
     return t.rstrip("0").rstrip(".") if "." in t else t
+
+
+def fmt_dt(dt_value) -> str:
+    if dt_value is None:
+        return "Noma'lum vaqt"
+
+    try:
+        return dt_value.strftime("%d-%m-%Y %H:%M")
+    except Exception:
+        return str(dt_value)
 
 
 @router.message(CommandStart())
@@ -128,6 +139,7 @@ async def my_debt(message: Message, session: AsyncSession):
 
         out.append(
             f"Buyurtma ID: {o.id}\n"
+            f"Sana: {fmt_dt(o.created_at)}\n"
             f"Jami: {fmt(t)} so'm\n"
             f"To'langan: {fmt(p)} so'm\n"
             f"Qoldiq: {fmt(l)} so'm\n"
@@ -172,6 +184,7 @@ async def my_orders(message: Message, session: AsyncSession):
         for req in requests:
             out.append(
                 f"So'rov ID: {req.id}\n"
+                f"Sana: {fmt_dt(req.created_at)}\n"
                 f"Jami: {fmt(req.total_amount)} so'm\n"
                 f"To'lov turi: {req.payment_type}\n"
                 f"Holat: {req.status}\n"
@@ -186,6 +199,7 @@ async def my_orders(message: Message, session: AsyncSession):
 
             out.append(
                 f"Buyurtma ID: {o.id}\n"
+                f"Sana: {fmt_dt(o.created_at)}\n"
                 f"Jami: {fmt(t)} so'm\n"
                 f"To'langan: {fmt(p)} so'm\n"
                 f"Qoldiq: {fmt(l)} so'm\n"
