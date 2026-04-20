@@ -13,165 +13,135 @@ from app.keyboards.reply import (
     remove_keyboard,
 )
 from app.services.customers import get_customer_by_phone
-from app.services.orders import list_customer_open_orders
+from app.services.orders import list_customer_orders, list_customer_open_orders
 from app.services.users import create_or_update_user, get_user_by_telegram_id
 
 router = Router()
 
 
-def get_role(telegram_id: int) -> str:
-    return "admin" if telegram_id in settings.admin_ids else "mijoz"
+def role(uid):
+    return "admin" if uid in settings.admin_ids else "mijoz"
 
 
-def format_number(value: Decimal | float | int | str) -> str:
-    text = format(Decimal(str(value)), "f")
-    if "." in text:
-        text = text.rstrip("0").rstrip(".")
-    return text
+def fmt(x):
+    t = format(Decimal(str(x)), "f")
+    return t.rstrip("0").rstrip(".") if "." in t else t
 
 
 @router.message(CommandStart())
-async def start_handler(message: Message, session: AsyncSession) -> None:
-    tg_user = message.from_user
-    if tg_user is None:
+async def start(message: Message, session: AsyncSession):
+    u = message.from_user
+    if not u:
         return
 
-    role = get_role(tg_user.id)
-    existing_user = await get_user_by_telegram_id(session, tg_user.id)
+    r = role(u.id)
+    ex = await get_user_by_telegram_id(session, u.id)
 
-    if existing_user and existing_user.phone:
+    if ex and ex.phone:
         await create_or_update_user(
-            session=session,
-            telegram_id=tg_user.id,
-            full_name=tg_user.full_name,
-            username=tg_user.username,
-            phone=existing_user.phone,
-            role=role,
+            session,
+            u.id,
+            u.full_name,
+            u.username,
+            ex.phone,
+            r,
         )
 
-        if role == "admin":
-            await message.answer(
-                f"Assalomu alaykum, {existing_user.full_name}.\n\n"
-                "Admin panelga xush kelibsiz.",
-                reply_markup=admin_menu_keyboard(),
-            )
-        else:
-            await message.answer(
-                f"Assalomu alaykum, {existing_user.full_name}.\n\n"
-                "Botga xush kelibsiz.",
-                reply_markup=main_menu_keyboard(),
-            )
+        kb = admin_menu_keyboard() if r == "admin" else main_menu_keyboard()
+        await message.answer("Xush kelibsiz", reply_markup=kb)
         return
 
-    await message.answer(
-        "Assalomu alaykum.\n\n"
-        "Botdan foydalanish uchun telefon raqamingizni yuboring.",
-        reply_markup=contact_keyboard(),
-    )
+    await message.answer("Raqamingizni yuboring", reply_markup=contact_keyboard())
 
 
 @router.message(F.contact)
-async def contact_handler(message: Message, session: AsyncSession) -> None:
-    tg_user = message.from_user
-    contact: Contact | None = message.contact
+async def contact(message: Message, session: AsyncSession):
+    u = message.from_user
+    c: Contact = message.contact
 
-    if tg_user is None or contact is None:
+    if not u or not c or c.user_id != u.id:
         return
 
-    if contact.user_id != tg_user.id:
-        await message.answer(
-            "Iltimos, aynan o'zingizning raqamingizni yuboring.",
-            reply_markup=contact_keyboard(),
-        )
-        return
-
-    role = get_role(tg_user.id)
+    r = role(u.id)
 
     user = await create_or_update_user(
-        session=session,
-        telegram_id=tg_user.id,
-        full_name=tg_user.full_name,
-        username=tg_user.username,
-        phone=contact.phone_number,
-        role=role,
+        session,
+        u.id,
+        u.full_name,
+        u.username,
+        c.phone_number,
+        r,
     )
 
-    await message.answer(
-        f"Rahmat, {user.full_name}.\n\n"
-        "Siz muvaffaqiyatli ro'yxatdan o'tdingiz.",
-        reply_markup=remove_keyboard(),
-    )
+    await message.answer("Ro'yxatdan o'tdingiz", reply_markup=remove_keyboard())
 
-    if role == "admin":
-        await message.answer(
-            "Admin bo'limlaridan birini tanlang:",
-            reply_markup=admin_menu_keyboard(),
-        )
-    else:
-        await message.answer(
-            "Asosiy bo'limlardan birini tanlang:",
-            reply_markup=main_menu_keyboard(),
-        )
+    kb = admin_menu_keyboard() if r == "admin" else main_menu_keyboard()
+    await message.answer("Menu:", reply_markup=kb)
 
 
 @router.message(F.text == "💳 Mening qarzim")
-async def my_debt_handler(message: Message, session: AsyncSession) -> None:
-    tg_user = message.from_user
-    if tg_user is None:
+async def my_debt(message: Message, session: AsyncSession):
+    u = message.from_user
+    if not u:
         return
 
-    user = await get_user_by_telegram_id(session, tg_user.id)
-    if user is None or not user.phone:
-        await message.answer("Avval ro'yxatdan o'ting.")
+    user = await get_user_by_telegram_id(session, u.id)
+    if not user or not user.phone:
         return
 
-    customer = await get_customer_by_phone(session, user.phone)
-    if customer is None:
-        await message.answer("Siz uchun mijoz kartasi topilmadi.")
+    cust = await get_customer_by_phone(session, user.phone)
+    if not cust:
         return
 
-    orders = await list_customer_open_orders(session, customer.id, limit=20)
+    orders = await list_customer_open_orders(session, cust.id)
+
     if not orders:
-        await message.answer("Sizda hozircha ochiq qarz mavjud emas.")
+        await message.answer("Qarz yo'q")
         return
 
-    lines = [f"{customer.full_name} uchun ochiq qarzlar:\n"]
-    total_left = Decimal("0")
+    total = Decimal("0")
+    out = []
 
-    for order in orders:
-        total = Decimal(str(order.total_amount))
-        paid = Decimal(str(order.paid_amount))
-        left = total - paid
-        total_left += left
+    for o in orders:
+        t = Decimal(str(o.total_amount))
+        p = Decimal(str(o.paid_amount))
+        l = t - p
+        total += l
 
-        lines.append(
-            f"Buyurtma ID: {order.id}\n"
-            f"Jami: {format_number(total)} so'm\n"
-            f"To'langan: {format_number(paid)} so'm\n"
-            f"Qoldiq: {format_number(left)} so'm\n"
-            f"Holat: {order.status}\n"
-        )
+        out.append(f"ID:{o.id} Qoldiq:{fmt(l)}")
 
-    lines.append(f"Umumiy qarzingiz: {format_number(total_left)} so'm")
-    await message.answer("\n".join(lines))
+    out.append(f"Jami qarz: {fmt(total)} so'm")
+
+    await message.answer("\n".join(out))
 
 
 @router.message(F.text == "📦 Buyurtmalarim")
-async def my_orders_handler(message: Message) -> None:
-    await message.answer(
-        "Hozircha bu bo'lim tayyor emas.\n"
-        "Keyingi bosqichda buyurtmalar bo'limini ulaymiz."
-    )
+async def my_orders(message: Message, session: AsyncSession):
+    u = message.from_user
+    if not u:
+        return
 
+    user = await get_user_by_telegram_id(session, u.id)
+    if not user or not user.phone:
+        return
 
-@router.message(F.text == "☎️ Aloqa")
-async def contact_info_handler(message: Message) -> None:
-    await message.answer(
-        "Aloqa uchun admin bilan bog'laning.\n"
-        "Keyingi bosqichda bu yerga aniq aloqa ma'lumoti qo'shamiz."
-    )
+    cust = await get_customer_by_phone(session, user.phone)
+    if not cust:
+        return
 
+    orders = await list_customer_orders(session, cust.id)
 
-@router.message(F.text == "📊 Hisobotlar")
-async def reports_stub(message: Message) -> None:
-    await message.answer("Hozircha bu bo'lim tayyor emas.")
+    if not orders:
+        await message.answer("Buyurtmalar yo'q")
+        return
+
+    out = []
+
+    for o in orders:
+        t = Decimal(str(o.total_amount))
+        p = Decimal(str(o.paid_amount))
+        l = t - p
+
+        out.append(f"ID:{o.id} Jami:{fmt(t)} Qoldiq:{fmt(l)}")
+
+    await message.answer("\n".join(out))

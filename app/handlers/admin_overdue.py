@@ -1,0 +1,51 @@
+from datetime import datetime
+from decimal import Decimal
+
+from aiogram import F, Router
+from aiogram.types import Message
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import settings
+from app.services.customers import get_customer_by_id
+from app.services.orders import list_overdue_orders
+
+router = Router()
+
+
+def is_admin(message: Message):
+    return message.from_user and message.from_user.id in settings.admin_ids
+
+
+def fmt(x):
+    t = format(Decimal(str(x)), "f")
+    return t.rstrip("0").rstrip(".") if "." in t else t
+
+
+@router.message(F.text == "⏰ Kechikkan qarzlar")
+async def overdue(message: Message, session: AsyncSession):
+    if not is_admin(message):
+        return
+
+    orders = await list_overdue_orders(session)
+
+    if not orders:
+        await message.answer("Kechikkan qarz yo'q")
+        return
+
+    out = ["7+ kun qarzlar:\n"]
+
+    for o in orders:
+        c = await get_customer_by_id(session, o.customer_id)
+        name = c.full_name if c else "Noma'lum"
+
+        total = Decimal(str(o.total_amount))
+        paid = Decimal(str(o.paid_amount))
+        left = total - paid
+
+        days = (datetime.utcnow() - o.created_at).days
+
+        out.append(
+            f"ID:{o.id}\n{name}\nQoldiq:{fmt(left)} so'm\n{days} kun\n"
+        )
+
+    await message.answer("\n".join(out))
