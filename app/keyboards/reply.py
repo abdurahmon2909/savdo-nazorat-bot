@@ -35,6 +35,8 @@ def admin_menu_keyboard() -> ReplyKeyboardMarkup:
             [KeyboardButton(text="👥 Mijozlar")],
             [KeyboardButton(text="📦 Mahsulotlar")],
             [KeyboardButton(text="📉 Qarzdorlar")],
+            [KeyboardButton(text="📚 Buyurtmalar tarixi")],
+            [KeyboardButton(text="🧮 Qoldiqni to'g'rilash")],
             [KeyboardButton(text="📊 Hisobotlar")],
         ],
         resize_keyboard=True,

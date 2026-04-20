@@ -55,6 +55,17 @@ async def reduce_product_stock(
     return product
 
 
+async def set_product_stock(
+    session: AsyncSession,
+    product: Product,
+    new_quantity: Decimal,
+) -> Product:
+    product.stock_quantity = new_quantity
+    await session.commit()
+    await session.refresh(product)
+    return product
+
+
 async def list_products(session: AsyncSession, limit: int = 20) -> list[Product]:
     result = await session.execute(
         select(Product)

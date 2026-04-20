@@ -51,6 +51,20 @@ async def get_order_by_id(session: AsyncSession, order_id: int) -> Order | None:
     return result.scalar_one_or_none()
 
 
+async def list_customer_orders(
+    session: AsyncSession,
+    customer_id: int,
+    limit: int = 20,
+) -> list[Order]:
+    result = await session.execute(
+        select(Order)
+        .where(Order.customer_id == customer_id)
+        .order_by(desc(Order.id))
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
 async def list_customer_open_orders(
     session: AsyncSession,
     customer_id: int,
@@ -62,6 +76,18 @@ async def list_customer_open_orders(
             Order.customer_id == customer_id,
             Order.status.in_(["unpaid", "partial"]),
         )
+        .order_by(desc(Order.id))
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def list_recent_orders(
+    session: AsyncSession,
+    limit: int = 50,
+) -> list[Order]:
+    result = await session.execute(
+        select(Order)
         .order_by(desc(Order.id))
         .limit(limit)
     )

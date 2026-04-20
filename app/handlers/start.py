@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from aiogram import F, Router
 from aiogram.filters import CommandStart
 from aiogram.types import Contact, Message
@@ -10,6 +12,8 @@ from app.keyboards.reply import (
     main_menu_keyboard,
     remove_keyboard,
 )
+from app.services.customers import get_customer_by_phone
+from app.services.orders import list_customer_open_orders
 from app.services.users import create_or_update_user, get_user_by_telegram_id
 
 router = Router()
@@ -17,6 +21,13 @@ router = Router()
 
 def get_role(telegram_id: int) -> str:
     return "admin" if telegram_id in settings.admin_ids else "mijoz"
+
+
+def format_number(value: Decimal | float | int | str) -> str:
+    text = format(Decimal(str(value)), "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text
 
 
 @router.message(CommandStart())
@@ -104,11 +115,45 @@ async def contact_handler(message: Message, session: AsyncSession) -> None:
 
 
 @router.message(F.text == "💳 Mening qarzim")
-async def my_debt_handler(message: Message) -> None:
-    await message.answer(
-        "Hozircha bu bo'lim tayyor emas.\n"
-        "Keyingi bosqichda qarz bo'limini ulaymiz."
-    )
+async def my_debt_handler(message: Message, session: AsyncSession) -> None:
+    tg_user = message.from_user
+    if tg_user is None:
+        return
+
+    user = await get_user_by_telegram_id(session, tg_user.id)
+    if user is None or not user.phone:
+        await message.answer("Avval ro'yxatdan o'ting.")
+        return
+
+    customer = await get_customer_by_phone(session, user.phone)
+    if customer is None:
+        await message.answer("Siz uchun mijoz kartasi topilmadi.")
+        return
+
+    orders = await list_customer_open_orders(session, customer.id, limit=20)
+    if not orders:
+        await message.answer("Sizda hozircha ochiq qarz mavjud emas.")
+        return
+
+    lines = [f"{customer.full_name} uchun ochiq qarzlar:\n"]
+    total_left = Decimal("0")
+
+    for order in orders:
+        total = Decimal(str(order.total_amount))
+        paid = Decimal(str(order.paid_amount))
+        left = total - paid
+        total_left += left
+
+        lines.append(
+            f"Buyurtma ID: {order.id}\n"
+            f"Jami: {format_number(total)} so'm\n"
+            f"To'langan: {format_number(paid)} so'm\n"
+            f"Qoldiq: {format_number(left)} so'm\n"
+            f"Holat: {order.status}\n"
+        )
+
+    lines.append(f"Umumiy qarzingiz: {format_number(total_left)} so'm")
+    await message.answer("\n".join(lines))
 
 
 @router.message(F.text == "📦 Buyurtmalarim")
