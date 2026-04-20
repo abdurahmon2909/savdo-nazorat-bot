@@ -15,7 +15,7 @@ from app.services.customers import (
     list_customers,
     search_customers,
 )
-from app.states.customer_state import AddCustomerState
+from app.states.customer_state import AddCustomerState, SearchCustomerState
 
 router = Router()
 
@@ -201,8 +201,7 @@ async def search_customer_start(message: Message, state: FSMContext) -> None:
     if not is_admin(message):
         return
 
-    await state.clear()
-    await state.update_data(search_customers_mode=True)
+    await state.set_state(SearchCustomerState.query)
     await message.answer(
         "Qidirish uchun ism yoki telefon yuboring.\n\n"
         "Masalan: Ali\n"
@@ -212,17 +211,13 @@ async def search_customer_start(message: Message, state: FSMContext) -> None:
     )
 
 
-@router.message()
-async def universal_search_handler(
+@router.message(SearchCustomerState.query)
+async def search_customer_query(
     message: Message,
     state: FSMContext,
     session: AsyncSession,
 ) -> None:
     if not is_admin(message):
-        return
-
-    data = await state.get_data()
-    if not data.get("search_customers_mode"):
         return
 
     query = (message.text or "").strip()

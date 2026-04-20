@@ -16,7 +16,7 @@ from app.services.products import (
     list_products,
     search_products,
 )
-from app.states.product_state import AddProductState
+from app.states.product_state import AddProductState, SearchProductState
 
 router = Router()
 
@@ -199,6 +199,9 @@ async def add_product_stock_quantity(
 
 @router.message(F.text == "📋 Mahsulotlar ro'yxati")
 async def products_list(message: Message, session: AsyncSession):
+    if not is_admin(message):
+        return
+
     products = await list_products(session)
 
     if not products:
@@ -219,25 +222,32 @@ async def products_list(message: Message, session: AsyncSession):
 
 @router.message(F.text == "🔎 Mahsulot qidirish")
 async def search_product_start(message: Message, state: FSMContext):
-    await state.set_data({"search": True})
+    if not is_admin(message):
+        return
+
+    await state.set_state(SearchProductState.query)
     await message.answer("Qidiruv uchun nom yuboring")
 
 
-@router.message()
+@router.message(SearchProductState.query)
 async def search_product_handler(
     message: Message,
     state: FSMContext,
     session: AsyncSession,
 ):
-    data = await state.get_data()
-
-    if not data.get("search"):
+    if not is_admin(message):
         return
 
-    products = await search_products(session, message.text or "")
+    query = (message.text or "").strip()
+    if len(query) < 2:
+        await message.answer("Qidiruv uchun kamida 2 ta belgi kiriting.")
+        return
+
+    products = await search_products(session, query)
 
     if not products:
         await message.answer("Topilmadi")
+        await state.clear()
         return
 
     text = "Topildi:\n\n"

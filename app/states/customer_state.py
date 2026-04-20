@@ -6,3 +6,7 @@ class AddCustomerState(StatesGroup):
     phone = State()
     address = State()
     note = State()
+
+
+class SearchCustomerState(StatesGroup):
+    query = State()

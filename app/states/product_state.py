@@ -8,3 +8,7 @@ class AddProductState(StatesGroup):
     sell_price = State()
     cost_price = State()
     stock_quantity = State()
+
+
+class SearchProductState(StatesGroup):
+    query = State()
