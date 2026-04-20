@@ -19,16 +19,18 @@ async def main() -> None:
     )
 
     await init_db()
-    #from app.scripts.product_seed import seed_products
 
-     #await seed_products()
     bot = Bot(
         token=settings.bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
 
     dp = Dispatcher()
-    dp.message.middleware(DbSessionMiddleware(SessionLocal))
+
+    db_middleware = DbSessionMiddleware(SessionLocal)
+    dp.message.middleware(db_middleware)
+    dp.callback_query.middleware(db_middleware)
+
     dp.include_router(setup_routers())
 
     asyncio.create_task(reminder_loop(bot, SessionLocal))
