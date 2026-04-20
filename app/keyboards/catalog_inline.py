@@ -42,6 +42,22 @@ def products_keyboard(products: list[dict]) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def quantity_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="1", callback_data="catalog_qty:1"),
+                InlineKeyboardButton(text="2", callback_data="catalog_qty:2"),
+                InlineKeyboardButton(text="5", callback_data="catalog_qty:5"),
+                InlineKeyboardButton(text="10", callback_data="catalog_qty:10"),
+            ],
+            [InlineKeyboardButton(text="✍️ Boshqa miqdor", callback_data="catalog_qty_custom")],
+            [InlineKeyboardButton(text="⬅️ Mahsulotlar", callback_data="catalog_back_products")],
+            [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="catalog_cancel")],
+        ]
+    )
+
+
 def cart_action_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[

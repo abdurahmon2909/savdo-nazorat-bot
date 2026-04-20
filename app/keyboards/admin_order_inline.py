@@ -23,14 +23,20 @@ def reject_reason_keyboard(request_id: int) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Izoh yozish",
+                    text="✍️ Izoh yozish",
                     callback_data=f"orderreq_reject_reason:{request_id}",
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text="Izohsiz rad etish",
+                    text="🚫 Izohsiz rad etish",
                     callback_data=f"orderreq_reject_noreason:{request_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⬅️ Orqaga",
+                    callback_data=f"orderreq_reject_back:{request_id}",
                 )
             ],
         ]

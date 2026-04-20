@@ -13,6 +13,7 @@ from app.keyboards.catalog_inline import (
     confirm_order_keyboard,
     payment_type_keyboard,
     products_keyboard,
+    quantity_keyboard,
 )
 from app.keyboards.reply import main_menu_keyboard
 from app.services.customers import get_customer_by_linked_telegram_id, get_customer_by_phone
@@ -85,6 +86,80 @@ async def get_customer_for_user(session: AsyncSession, telegram_id: int):
     return customer, None
 
 
+async def show_categories(callback_or_message, state: FSMContext, session: AsyncSession):
+    categories = await list_active_categories(session)
+    if not categories:
+        if hasattr(callback_or_message, "answer"):
+            await callback_or_message.answer("Hozircha mavjud mahsulotlar yo'q.")
+        return False
+
+    await state.set_state(CreateCustomerOrderRequestState.category)
+
+    if isinstance(callback_or_message, Message):
+        await callback_or_message.answer(
+            "Kategoriya tanlang:",
+            reply_markup=categories_keyboard(categories),
+        )
+    else:
+        if callback_or_message.message:
+            await callback_or_message.message.edit_text(
+                "Kategoriya tanlang:",
+                reply_markup=categories_keyboard(categories),
+            )
+        await callback_or_message.answer()
+    return True
+
+
+async def show_products_by_current_category(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> bool:
+    data = await state.get_data()
+    category = data.get("current_category")
+    if not category:
+        await callback.answer("Kategoriya topilmadi", show_alert=True)
+        return False
+
+    products = await list_products_by_category(session, category, limit=100)
+    if not products:
+        await callback.answer("Bu kategoriyada mahsulot yo'q", show_alert=True)
+        return False
+
+    product_rows = [
+        {
+            "id": product.id,
+            "name": product.name,
+            "price_text": format_number(product.sell_price),
+        }
+        for product in products
+    ]
+
+    await state.set_state(CreateCustomerOrderRequestState.product)
+
+    if callback.message:
+        await callback.message.edit_text(
+            f"{category.title()} bo'limi:\nMahsulot tanlang:",
+            reply_markup=products_keyboard(product_rows),
+        )
+    await callback.answer()
+    return True
+
+
+def append_item_to_cart(data: dict, qty: Decimal) -> list[dict]:
+    items = data.get("items", []).copy()
+    items.append(
+        {
+            "product_id": int(data["current_product_id"]),
+            "product_name": data["current_product_name"],
+            "product_unit": data["current_product_unit"],
+            "quantity": str(qty),
+            "price": str(data["current_product_price"]),
+        }
+    )
+    return items
+
+
 @router.message(F.text == "🛍 Buyurtma berish")
 async def start_customer_order(
     message: Message,
@@ -100,22 +175,13 @@ async def start_customer_order(
         await message.answer(error)
         return
 
-    categories = await list_active_categories(session)
-    if not categories:
-        await message.answer("Hozircha mavjud mahsulotlar yo'q.")
-        return
-
     await state.clear()
     await state.update_data(
         customer_id=customer.id,
         customer_name=customer.full_name,
         items=[],
     )
-    await state.set_state(CreateCustomerOrderRequestState.category)
-    await message.answer(
-        "Kategoriya tanlang:",
-        reply_markup=categories_keyboard(categories),
-    )
+    await show_categories(message, state, session)
 
 
 @router.callback_query(F.data == "catalog_cancel")
@@ -133,18 +199,7 @@ async def back_to_categories(
     state: FSMContext,
     session: AsyncSession,
 ) -> None:
-    categories = await list_active_categories(session)
-    if not categories:
-        await callback.answer("Kategoriya topilmadi", show_alert=True)
-        return
-
-    await state.set_state(CreateCustomerOrderRequestState.category)
-    if callback.message:
-        await callback.message.edit_text(
-            "Kategoriya tanlang:",
-            reply_markup=categories_keyboard(categories),
-        )
-    await callback.answer()
+    await show_categories(callback, state, session)
 
 
 @router.callback_query(F.data.startswith("catalog_category:"))
@@ -154,31 +209,8 @@ async def choose_category(
     session: AsyncSession,
 ) -> None:
     category = callback.data.split(":", 1)[1]
-    products = await list_products_by_category(session, category, limit=100)
-
-    if not products:
-        await callback.answer("Bu kategoriyada mahsulot yo'q", show_alert=True)
-        return
-
-    product_rows = [
-        {
-            "id": product.id,
-            "name": product.name,
-            "price_text": format_number(product.sell_price),
-        }
-        for product in products
-    ]
-
     await state.update_data(current_category=category)
-    await state.set_state(CreateCustomerOrderRequestState.product)
-
-    if callback.message:
-        await callback.message.edit_text(
-            f"{category.title()} bo'limi:\nMahsulot tanlang:",
-            reply_markup=products_keyboard(product_rows),
-        )
-
-    await callback.answer()
+    await show_products_by_current_category(callback, state, session)
 
 
 @router.callback_query(F.data.startswith("catalog_product:"))
@@ -205,20 +237,76 @@ async def choose_product(
         current_product_unit=product.unit,
         current_product_stock=str(product.stock_quantity),
     )
-    await state.set_state(CreateCustomerOrderRequestState.quantity)
+    await state.set_state(CreateCustomerOrderRequestState.product)
 
     if callback.message:
         await callback.message.edit_text(
             f"Mahsulot: {product.name}\n"
             f"Narx: {format_number(product.sell_price)} so'm\n\n"
-            "Miqdorni xabar qilib yuboring."
+            "Miqdor tanlang:",
+            reply_markup=quantity_keyboard(),
         )
 
     await callback.answer()
 
 
-@router.message(CreateCustomerOrderRequestState.quantity)
-async def choose_quantity(
+@router.callback_query(F.data == "catalog_back_products")
+async def back_to_products(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
+    await show_products_by_current_category(callback, state, session)
+
+
+@router.callback_query(F.data.startswith("catalog_qty:"))
+async def choose_quantity_preset(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    qty_value = callback.data.split(":", 1)[1]
+    qty = parse_decimal(qty_value)
+
+    if qty is None:
+        await callback.answer("Miqdor noto'g'ri", show_alert=True)
+        return
+
+    data = await state.get_data()
+    stock = Decimal(str(data["current_product_stock"]))
+
+    if qty > stock:
+        await callback.answer("Buncha mahsulot yo'q", show_alert=True)
+        return
+
+    items = append_item_to_cart(data, qty)
+
+    await state.update_data(items=items)
+    await state.set_state(CreateCustomerOrderRequestState.add_more)
+
+    if callback.message:
+        await callback.message.edit_text(
+            build_cart_text(items),
+            reply_markup=cart_action_keyboard(),
+        )
+
+    await callback.answer()
+
+
+@router.callback_query(F.data == "catalog_qty_custom")
+async def choose_quantity_custom(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.set_state(CreateCustomerOrderRequestState.quantity_custom)
+
+    if callback.message:
+        await callback.message.edit_text(
+            "Kerakli miqdorni xabar qilib yuboring.\n\n"
+            "Masalan: 3 yoki 12"
+        )
+
+    await callback.answer()
+
+
+@router.message(CreateCustomerOrderRequestState.quantity_custom)
+async def choose_quantity_custom_message(
     message: Message,
     state: FSMContext,
 ) -> None:
@@ -237,16 +325,7 @@ async def choose_quantity(
         )
         return
 
-    items = data.get("items", []).copy()
-    items.append(
-        {
-            "product_id": int(data["current_product_id"]),
-            "product_name": data["current_product_name"],
-            "product_unit": data["current_product_unit"],
-            "quantity": str(qty),
-            "price": str(data["current_product_price"]),
-        }
-    )
+    items = append_item_to_cart(data, qty)
 
     await state.update_data(items=items)
     await state.set_state(CreateCustomerOrderRequestState.add_more)
@@ -263,19 +342,7 @@ async def add_more_products(
     state: FSMContext,
     session: AsyncSession,
 ) -> None:
-    categories = await list_active_categories(session)
-    if not categories:
-        await callback.answer("Kategoriya topilmadi", show_alert=True)
-        return
-
-    await state.set_state(CreateCustomerOrderRequestState.category)
-
-    if callback.message:
-        await callback.message.edit_text(
-            "Kategoriya tanlang:",
-            reply_markup=categories_keyboard(categories),
-        )
-    await callback.answer()
+    await show_categories(callback, state, session)
 
 
 @router.callback_query(F.data == "catalog_choose_payment")
