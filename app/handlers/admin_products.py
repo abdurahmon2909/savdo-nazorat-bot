@@ -11,10 +11,19 @@ from app.keyboards.reply import (
     products_menu_keyboard,
 )
 from app.services.products import (
+    add_product_stock,
+    archive_product,
     create_product,
+    get_product_by_id,
     get_product_by_name,
     list_products,
     search_products,
+    update_product_price,
+)
+from app.states.product_manage_state import (
+    AddProductStockState,
+    ArchiveProductState,
+    EditProductPriceState,
 )
 from app.states.product_state import AddProductState, SearchProductState
 
@@ -49,6 +58,21 @@ def format_number(value: Decimal | float | int) -> str:
     return text
 
 
+def build_product_lines(products: list) -> str:
+    lines = ["Mahsulotlar:\n"]
+    for p in products:
+        holat = "Faol" if p.is_active else "Arxiv"
+        lines.append(
+            f"ID: {p.id}\n"
+            f"Nomi: {p.name}\n"
+            f"Toifa: {p.category or 'kiritilmagan'}\n"
+            f"Narx: {format_number(p.sell_price)} so'm\n"
+            f"Qoldiq: {format_number(p.stock_quantity)} {p.unit}\n"
+            f"Holat: {holat}\n"
+        )
+    return "\n".join(lines)
+
+
 @router.message(F.text == "📦 Mahsulotlar")
 async def products_menu(message: Message, state: FSMContext) -> None:
     if not is_admin(message):
@@ -69,8 +93,20 @@ async def add_product_start(message: Message, state: FSMContext) -> None:
     await state.set_state(AddProductState.name)
     await message.answer(
         "Yangi mahsulot nomini yuboring.\n\n"
-        "Masalan: Sellofan paket 40x60",
+        "Masalan: Sellofan Paket 40x60",
         reply_markup=cancel_keyboard(),
+    )
+
+
+@router.message(F.text == "❌ Bekor qilish")
+async def cancel_any_product_state(message: Message, state: FSMContext) -> None:
+    if not is_admin(message):
+        return
+
+    await state.clear()
+    await message.answer(
+        "Amal bekor qilindi.",
+        reply_markup=products_menu_keyboard(),
     )
 
 
@@ -99,10 +135,7 @@ async def add_product_name(
 
     await state.update_data(name=name)
     await state.set_state(AddProductState.category)
-
-    await message.answer(
-        "Toifani yuboring yoki '-' yuboring."
-    )
+    await message.answer("Toifani yuboring yoki '-' yuboring.")
 
 
 @router.message(AddProductState.category)
@@ -129,7 +162,7 @@ async def add_product_sell_price(message: Message, state: FSMContext):
     price = parse_decimal(message.text or "")
 
     if price is None:
-        await message.answer("Narx noto‘g‘ri.")
+        await message.answer("Narx noto'g'ri.")
         return
 
     await state.update_data(sell_price=str(price))
@@ -147,12 +180,12 @@ async def add_product_cost_price(message: Message, state: FSMContext):
     else:
         price = parse_decimal(text)
         if price is None:
-            await message.answer("Noto‘g‘ri qiymat.")
+            await message.answer("Noto'g'ri qiymat.")
             return
         await state.update_data(cost_price=str(price))
 
     await state.set_state(AddProductState.stock_quantity)
-    await message.answer("Boshlang‘ich qoldiqni kiriting")
+    await message.answer("Boshlang'ich qoldiqni kiriting")
 
 
 @router.message(AddProductState.stock_quantity)
@@ -164,7 +197,7 @@ async def add_product_stock_quantity(
     qty = parse_decimal(message.text or "")
 
     if qty is None:
-        await message.answer("Noto‘g‘ri son.")
+        await message.answer("Noto'g'ri son.")
         return
 
     data = await state.get_data()
@@ -188,7 +221,8 @@ async def add_product_stock_quantity(
     )
 
     await message.answer(
-        "Mahsulot qo‘shildi\n\n"
+        "Mahsulot qo'shildi\n\n"
+        f"ID: {product.id}\n"
         f"Nomi: {product.name}\n"
         f"Narx: {format_number(product.sell_price)} so'm\n"
         f"Tannarx: {tannarx_text}\n"
@@ -202,22 +236,16 @@ async def products_list(message: Message, session: AsyncSession):
     if not is_admin(message):
         return
 
-    products = await list_products(session)
+    products = await list_products(session, limit=50)
 
     if not products:
-        await message.answer("Mahsulotlar yo‘q")
+        await message.answer("Mahsulotlar yo'q", reply_markup=products_menu_keyboard())
         return
 
-    text = "Mahsulotlar:\n\n"
-
-    for p in products:
-        text += (
-            f"{p.name}\n"
-            f"Narx: {format_number(p.sell_price)} so'm\n"
-            f"Qoldiq: {format_number(p.stock_quantity)} {p.unit}\n\n"
-        )
-
-    await message.answer(text)
+    await message.answer(
+        build_product_lines(products),
+        reply_markup=products_menu_keyboard(),
+    )
 
 
 @router.message(F.text == "🔎 Mahsulot qidirish")
@@ -226,7 +254,10 @@ async def search_product_start(message: Message, state: FSMContext):
         return
 
     await state.set_state(SearchProductState.query)
-    await message.answer("Qidiruv uchun nom yuboring")
+    await message.answer(
+        "Qidiruv uchun nom yuboring",
+        reply_markup=cancel_keyboard(),
+    )
 
 
 @router.message(SearchProductState.query)
@@ -246,14 +277,248 @@ async def search_product_handler(
     products = await search_products(session, query)
 
     if not products:
-        await message.answer("Topilmadi")
+        await message.answer("Topilmadi", reply_markup=products_menu_keyboard())
         await state.clear()
         return
 
-    text = "Topildi:\n\n"
-
-    for p in products:
-        text += f"{p.name} - {format_number(p.sell_price)} so'm\n"
-
-    await message.answer(text)
+    await message.answer(
+        build_product_lines(products),
+        reply_markup=products_menu_keyboard(),
+    )
     await state.clear()
+
+
+@router.message(F.text == "✏️ Narxni o'zgartirish")
+async def edit_price_start(message: Message, state: FSMContext, session: AsyncSession):
+    if not is_admin(message):
+        return
+
+    products = await list_products(session, limit=30)
+    if not products:
+        await message.answer("Mahsulotlar yo'q.")
+        return
+
+    await state.set_state(EditProductPriceState.product_id)
+    await message.answer(
+        build_product_lines(products) + "\nNarxini o'zgartirish uchun mahsulot ID raqamini yuboring.",
+        reply_markup=cancel_keyboard(),
+    )
+
+
+@router.message(EditProductPriceState.product_id)
+async def edit_price_choose_product(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+):
+    if not is_admin(message):
+        return
+
+    text = (message.text or "").strip()
+    if not text.isdigit():
+        await message.answer("Iltimos, mahsulot ID raqamini yuboring.")
+        return
+
+    product = await get_product_by_id(session, int(text))
+    if product is None:
+        await message.answer("Bunday mahsulot topilmadi.")
+        return
+
+    await state.update_data(product_id=product.id, product_name=product.name)
+    await state.set_state(EditProductPriceState.new_price)
+    await message.answer(
+        f"Yangi narxni yuboring.\n\n"
+        f"Mahsulot: {product.name}\n"
+        f"Hozirgi narx: {format_number(product.sell_price)} so'm"
+    )
+
+
+@router.message(EditProductPriceState.new_price)
+async def edit_price_save(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+):
+    if not is_admin(message):
+        return
+
+    new_price = parse_decimal(message.text or "")
+    if new_price is None or new_price == 0:
+        await message.answer("Narxni to'g'ri kiriting.")
+        return
+
+    data = await state.get_data()
+    product = await get_product_by_id(session, int(data["product_id"]))
+    if product is None:
+        await state.clear()
+        await message.answer("Mahsulot topilmadi.", reply_markup=products_menu_keyboard())
+        return
+
+    product = await update_product_price(session, product, new_price)
+    await state.clear()
+
+    await message.answer(
+        "Narx yangilandi.\n\n"
+        f"Mahsulot: {product.name}\n"
+        f"Yangi narx: {format_number(product.sell_price)} so'm",
+        reply_markup=products_menu_keyboard(),
+    )
+
+
+@router.message(F.text == "📥 Qoldiq qo'shish")
+async def add_stock_start(message: Message, state: FSMContext, session: AsyncSession):
+    if not is_admin(message):
+        return
+
+    products = await list_products(session, limit=30)
+    if not products:
+        await message.answer("Mahsulotlar yo'q.")
+        return
+
+    await state.set_state(AddProductStockState.product_id)
+    await message.answer(
+        build_product_lines(products) + "\nQoldiq qo'shish uchun mahsulot ID raqamini yuboring.",
+        reply_markup=cancel_keyboard(),
+    )
+
+
+@router.message(AddProductStockState.product_id)
+async def add_stock_choose_product(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+):
+    if not is_admin(message):
+        return
+
+    text = (message.text or "").strip()
+    if not text.isdigit():
+        await message.answer("Iltimos, mahsulot ID raqamini yuboring.")
+        return
+
+    product = await get_product_by_id(session, int(text))
+    if product is None:
+        await message.answer("Bunday mahsulot topilmadi.")
+        return
+
+    await state.update_data(product_id=product.id, product_name=product.name)
+    await state.set_state(AddProductStockState.add_quantity)
+    await message.answer(
+        f"Qo'shiladigan qoldiqni yuboring.\n\n"
+        f"Mahsulot: {product.name}\n"
+        f"Hozirgi qoldiq: {format_number(product.stock_quantity)} {product.unit}"
+    )
+
+
+@router.message(AddProductStockState.add_quantity)
+async def add_stock_save(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+):
+    if not is_admin(message):
+        return
+
+    add_qty = parse_decimal(message.text or "")
+    if add_qty is None:
+        await message.answer("Miqdorni to'g'ri kiriting.")
+        return
+
+    data = await state.get_data()
+    product = await get_product_by_id(session, int(data["product_id"]))
+    if product is None:
+        await state.clear()
+        await message.answer("Mahsulot topilmadi.", reply_markup=products_menu_keyboard())
+        return
+
+    product = await add_product_stock(session, product, add_qty)
+    await state.clear()
+
+    await message.answer(
+        "Qoldiq qo'shildi.\n\n"
+        f"Mahsulot: {product.name}\n"
+        f"Yangi qoldiq: {format_number(product.stock_quantity)} {product.unit}",
+        reply_markup=products_menu_keyboard(),
+    )
+
+
+@router.message(F.text == "🗃 Mahsulotni arxivlash")
+async def archive_product_start(message: Message, state: FSMContext, session: AsyncSession):
+    if not is_admin(message):
+        return
+
+    products = await list_products(session, limit=30)
+    if not products:
+        await message.answer("Mahsulotlar yo'q.")
+        return
+
+    await state.set_state(ArchiveProductState.product_id)
+    await message.answer(
+        build_product_lines(products) + "\nArxivlash uchun mahsulot ID raqamini yuboring.",
+        reply_markup=cancel_keyboard(),
+    )
+
+
+@router.message(ArchiveProductState.product_id)
+async def archive_product_choose(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+):
+    if not is_admin(message):
+        return
+
+    text = (message.text or "").strip()
+    if not text.isdigit():
+        await message.answer("Iltimos, mahsulot ID raqamini yuboring.")
+        return
+
+    product = await get_product_by_id(session, int(text))
+    if product is None:
+        await message.answer("Bunday mahsulot topilmadi.")
+        return
+
+    await state.update_data(product_id=product.id, product_name=product.name)
+    await state.set_state(ArchiveProductState.confirm)
+    await message.answer(
+        f"Mahsulotni arxivlaysizmi?\n\n"
+        f"Mahsulot: {product.name}\n\n"
+        "Tasdiqlash uchun: ha\n"
+        "Bekor qilish uchun: yo'q"
+    )
+
+
+@router.message(ArchiveProductState.confirm)
+async def archive_product_confirm(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+):
+    if not is_admin(message):
+        return
+
+    answer = (message.text or "").strip().lower()
+    if answer not in {"ha", "yo'q", "yoq"}:
+        await message.answer("Iltimos, 'ha' yoki 'yo'q' deb yuboring.")
+        return
+
+    if answer in {"yo'q", "yoq"}:
+        await state.clear()
+        await message.answer("Arxivlash bekor qilindi.", reply_markup=products_menu_keyboard())
+        return
+
+    data = await state.get_data()
+    product = await get_product_by_id(session, int(data["product_id"]))
+    if product is None:
+        await state.clear()
+        await message.answer("Mahsulot topilmadi.", reply_markup=products_menu_keyboard())
+        return
+
+    product = await archive_product(session, product)
+    await state.clear()
+
+    await message.answer(
+        f"Mahsulot arxivlandi.\n\n"
+        f"Mahsulot: {product.name}",
+        reply_markup=products_menu_keyboard(),
+    )

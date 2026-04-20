@@ -44,6 +44,28 @@ async def get_product_by_name(session: AsyncSession, name: str) -> Product | Non
     return result.scalar_one_or_none()
 
 
+async def update_product_price(
+    session: AsyncSession,
+    product: Product,
+    new_price: Decimal,
+) -> Product:
+    product.sell_price = new_price
+    await session.commit()
+    await session.refresh(product)
+    return product
+
+
+async def add_product_stock(
+    session: AsyncSession,
+    product: Product,
+    add_quantity: Decimal,
+) -> Product:
+    product.stock_quantity = Decimal(str(product.stock_quantity)) + add_quantity
+    await session.commit()
+    await session.refresh(product)
+    return product
+
+
 async def reduce_product_stock(
     session: AsyncSession,
     product: Product,
@@ -61,6 +83,16 @@ async def set_product_stock(
     new_quantity: Decimal,
 ) -> Product:
     product.stock_quantity = new_quantity
+    await session.commit()
+    await session.refresh(product)
+    return product
+
+
+async def archive_product(
+    session: AsyncSession,
+    product: Product,
+) -> Product:
+    product.is_active = False
     await session.commit()
     await session.refresh(product)
     return product
