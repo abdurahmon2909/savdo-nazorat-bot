@@ -1,11 +1,15 @@
-# Sales Debt Bot
+# Savdo Nazorat Bot
 
-O'zbekcha Telegram bot:
-- ro'yxatdan o'tish
-- telefonni olish
-- foydalanuvchini PostgreSQL bazaga saqlash
+Boshlang'ich imkoniyatlar:
+- foydalanuvchini ro'yxatdan o'tkazish
+- telefonni majburiy olish
+- admin va mijoz rollari
+- admin menyusi
+- mijoz qo'shish
+- mijozlar ro'yxati
+- mijoz qidirish
 
-## Ishga tushirish
-Railway Variables:
+## Railway Variables
 - BOT_TOKEN
 - DATABASE_URL
+- ADMIN_IDS

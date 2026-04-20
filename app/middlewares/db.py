@@ -1,7 +1,7 @@
-from typing import Any, Awaitable, Callable, Dict
+from typing import Any, Awaitable, Callable
 
 from aiogram import BaseMiddleware
-from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 
 class DbSessionMiddleware(BaseMiddleware):
@@ -10,9 +10,9 @@ class DbSessionMiddleware(BaseMiddleware):
 
     async def __call__(
         self,
-        handler: Callable[[Any, Dict[str, Any]], Awaitable[Any]],
+        handler: Callable[..., Awaitable[Any]],
         event: Any,
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> Any:
         async with self.session_factory() as session:
             data["session"] = session

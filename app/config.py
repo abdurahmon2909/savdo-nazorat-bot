@@ -5,6 +5,7 @@ class Settings:
     def __init__(self) -> None:
         self.bot_token: str = os.getenv("BOT_TOKEN", "").strip()
         raw_db_url = os.getenv("DATABASE_URL", "").strip()
+        raw_admin_ids = os.getenv("ADMIN_IDS", "").strip()
 
         if not self.bot_token:
             raise ValueError("BOT_TOKEN topilmadi. Railway Variables ichiga qo'shing.")
@@ -18,6 +19,14 @@ class Settings:
             raw_db_url = raw_db_url.replace("postgres://", "postgresql+asyncpg://", 1)
 
         self.database_url: str = raw_db_url
+
+        self.admin_ids: list[int] = []
+        if raw_admin_ids:
+            self.admin_ids = [
+                int(item.strip())
+                for item in raw_admin_ids.split(",")
+                if item.strip().isdigit()
+            ]
 
 
 settings = Settings()

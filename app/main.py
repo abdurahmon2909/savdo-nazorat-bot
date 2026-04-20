@@ -23,8 +23,8 @@ async def main() -> None:
         token=settings.bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
-    dp = Dispatcher()
 
+    dp = Dispatcher()
     dp.message.middleware(DbSessionMiddleware(SessionLocal))
     dp.include_router(setup_routers())
 

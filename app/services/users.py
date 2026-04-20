@@ -17,7 +17,7 @@ async def create_or_update_user(
     full_name: str,
     username: str | None,
     phone: str | None,
-    role: str = "mijoz",
+    role: str,
 ) -> User:
     user = await get_user_by_telegram_id(session, telegram_id)
 
@@ -36,9 +36,9 @@ async def create_or_update_user(
 
     user.full_name = full_name
     user.username = username
+    user.role = role
     if phone:
         user.phone = phone
-    user.role = role
 
     await session.commit()
     await session.refresh(user)
