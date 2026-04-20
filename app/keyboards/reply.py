@@ -53,6 +53,18 @@ def customers_menu_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
+def products_menu_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="➕ Mahsulot qo'shish")],
+            [KeyboardButton(text="📋 Mahsulotlar ro'yxati")],
+            [KeyboardButton(text="🔎 Mahsulot qidirish")],
+            [KeyboardButton(text="⬅️ Orqaga")],
+        ],
+        resize_keyboard=True,
+    )
+
+
 def cancel_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[

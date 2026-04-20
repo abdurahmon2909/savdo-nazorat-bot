@@ -137,11 +137,6 @@ async def payment_stub(message: Message) -> None:
     await message.answer("Hozircha bu bo'lim tayyor emas.")
 
 
-@router.message(F.text == "📦 Mahsulotlar")
-async def products_stub(message: Message) -> None:
-    await message.answer("Hozircha bu bo'lim tayyor emas.")
-
-
 @router.message(F.text == "📉 Qarzdorlar")
 async def debtors_stub(message: Message) -> None:
     await message.answer("Hozircha bu bo'lim tayyor emas.")

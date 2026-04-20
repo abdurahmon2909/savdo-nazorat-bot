@@ -8,6 +8,9 @@ Boshlang'ich imkoniyatlar:
 - mijoz qo'shish
 - mijozlar ro'yxati
 - mijoz qidirish
+- mahsulot qo'shish
+- mahsulotlar ro'yxati
+- mahsulot qidirish
 
 ## Railway Variables
 - BOT_TOKEN

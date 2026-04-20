@@ -25,10 +25,11 @@ def is_admin(message: Message) -> bool:
 
 
 @router.message(F.text == "👥 Mijozlar")
-async def customers_menu(message: Message) -> None:
+async def customers_menu(message: Message, state: FSMContext) -> None:
     if not is_admin(message):
         return
 
+    await state.clear()
     await message.answer(
         "Mijozlar bo'limi.",
         reply_markup=customers_menu_keyboard(),
@@ -68,7 +69,7 @@ async def cancel_any_state(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer(
         "Amal bekor qilindi.",
-        reply_markup=customers_menu_keyboard(),
+        reply_markup=admin_menu_keyboard(),
     )
 
 
@@ -200,7 +201,8 @@ async def search_customer_start(message: Message, state: FSMContext) -> None:
     if not is_admin(message):
         return
 
-    await state.set_state(None)
+    await state.clear()
+    await state.update_data(search_customers_mode=True)
     await message.answer(
         "Qidirish uchun ism yoki telefon yuboring.\n\n"
         "Masalan: Ali\n"
@@ -208,7 +210,6 @@ async def search_customer_start(message: Message, state: FSMContext) -> None:
         "+998901234567",
         reply_markup=cancel_keyboard(),
     )
-    await state.set_data({"search_mode": True})
 
 
 @router.message()
@@ -221,7 +222,7 @@ async def universal_search_handler(
         return
 
     data = await state.get_data()
-    if not data.get("search_mode"):
+    if not data.get("search_customers_mode"):
         return
 
     query = (message.text or "").strip()
