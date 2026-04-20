@@ -19,9 +19,9 @@ async def main() -> None:
     )
 
     await init_db()
-    from app.scripts.product_seed import seed_products
+    #from app.scripts.product_seed import seed_products
 
-    await seed_products()
+     #await seed_products()
     bot = Bot(
         token=settings.bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),

@@ -9,6 +9,7 @@ from app.config import settings
 from app.services.customers import get_customer_by_id, list_customers
 from app.services.orders import create_order
 from app.services.products import get_product_by_id, list_products, reduce_product_stock
+from app.services.stock_alerts import send_low_stock_alert
 from app.states.order_state import CreateOrderState
 
 router = Router()
@@ -368,7 +369,13 @@ async def confirm_order(
     )
 
     for product_id, total_qty in product_map.items():
-        await reduce_product_stock(session, product_objects[product_id], total_qty)
+        updated_product = await reduce_product_stock(session, product_objects[product_id], total_qty)
+        await send_low_stock_alert(
+            bot=message.bot,
+            product_name=updated_product.name,
+            stock_quantity=Decimal(str(updated_product.stock_quantity)),
+            unit=updated_product.unit,
+        )
 
     summary_text = build_cart_text(data)
 

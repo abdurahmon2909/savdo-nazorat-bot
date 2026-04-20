@@ -15,6 +15,8 @@ from app.services.order_requests import (
     list_pending_order_requests,
     reject_order_request,
 )
+from app.services.products import get_product_by_id
+from app.services.stock_alerts import send_low_stock_alert
 from app.states.admin_request_state import ManageOrderRequestState
 
 router = Router()
@@ -160,6 +162,8 @@ async def decide_order_request(
         return
 
     if text == "tasdiqlash":
+        items = await list_order_request_items(session, request.id)
+
         order, error = await approve_order_request(
             session=session,
             order_request=request,
@@ -173,6 +177,16 @@ async def decide_order_request(
                 reply_markup=admin_menu_keyboard(),
             )
             return
+
+        for item in items:
+            product = await get_product_by_id(session, int(item.product_id))
+            if product is not None:
+                await send_low_stock_alert(
+                    bot=message.bot,
+                    product_name=product.name,
+                    stock_quantity=Decimal(str(product.stock_quantity)),
+                    unit=product.unit,
+                )
 
         try:
             await message.bot.send_message(

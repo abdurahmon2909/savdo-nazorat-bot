@@ -199,8 +199,3 @@ async def contact_info(message: Message):
         "Aloqa uchun admin bilan bog'laning.\n"
         "Keyingi bosqichda bu yerga aniq aloqa ma'lumoti qo'shamiz."
     )
-
-
-@router.message(F.text == "📊 Hisobotlar")
-async def reports_stub(message: Message):
-    await message.answer("Hozircha bu bo'lim tayyor emas.")

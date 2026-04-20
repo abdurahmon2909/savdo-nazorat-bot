@@ -17,7 +17,7 @@ async def create_product(
 ) -> Product:
     product = Product(
         name=name.strip(),
-        category=category.strip() if category else None,
+        category=category.strip().lower() if category else None,
         unit=unit.strip(),
         sell_price=sell_price,
         cost_price=cost_price,
@@ -70,6 +70,39 @@ async def list_products(session: AsyncSession, limit: int = 20) -> list[Product]
     result = await session.execute(
         select(Product)
         .order_by(Product.id.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def list_active_categories(session: AsyncSession) -> list[str]:
+    result = await session.execute(
+        select(Product.category)
+        .where(
+            Product.is_active.is_(True),
+            Product.stock_quantity > 0,
+            Product.category.is_not(None),
+        )
+        .distinct()
+        .order_by(Product.category.asc())
+    )
+    values = [row[0] for row in result.all() if row[0]]
+    return values
+
+
+async def list_products_by_category(
+    session: AsyncSession,
+    category: str,
+    limit: int = 100,
+) -> list[Product]:
+    result = await session.execute(
+        select(Product)
+        .where(
+            Product.is_active.is_(True),
+            Product.stock_quantity > 0,
+            Product.category == category.strip().lower(),
+        )
+        .order_by(Product.name.asc())
         .limit(limit)
     )
     return list(result.scalars().all())
