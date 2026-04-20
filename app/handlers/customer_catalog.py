@@ -5,6 +5,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
+from app.keyboards.admin_order_inline import order_request_keyboard
 from app.keyboards.catalog_inline import (
     cart_action_keyboard,
     categories_keyboard,
@@ -377,6 +379,24 @@ async def confirm_order_request(
         items=data["items"],
         payment_type=data["payment_type"],
     )
+
+    admin_text = (
+        f"🆕 Yangi buyurtma so'rovi\n\n"
+        f"So'rov ID: {request.id}\n"
+        f"Mijoz: {data['customer_name']}\n"
+        f"To'lov turi: {data['payment_type']}\n\n"
+        f"{build_cart_text(data['items'])}"
+    )
+
+    for admin_id in settings.admin_ids:
+        try:
+            await callback.bot.send_message(
+                admin_id,
+                admin_text,
+                reply_markup=order_request_keyboard(request.id),
+            )
+        except Exception:
+            pass
 
     await state.clear()
 
