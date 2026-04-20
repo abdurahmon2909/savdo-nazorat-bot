@@ -127,21 +127,6 @@ async def contact_info_handler(message: Message) -> None:
     )
 
 
-@router.message(F.text == "🛒 Yangi savdo")
-async def new_sale_stub(message: Message) -> None:
-    await message.answer("Hozircha bu bo'lim tayyor emas.")
-
-
-@router.message(F.text == "💰 To'lov kiritish")
-async def payment_stub(message: Message) -> None:
-    await message.answer("Hozircha bu bo'lim tayyor emas.")
-
-
-@router.message(F.text == "📉 Qarzdorlar")
-async def debtors_stub(message: Message) -> None:
-    await message.answer("Hozircha bu bo'lim tayyor emas.")
-
-
 @router.message(F.text == "📊 Hisobotlar")
 async def reports_stub(message: Message) -> None:
     await message.answer("Hozircha bu bo'lim tayyor emas.")
