@@ -80,14 +80,35 @@ def admin_quantity_keyboard(prefix: str) -> InlineKeyboardMarkup:
     )
 
 
-def admin_cart_keyboard(prefix: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="➕ Yana mahsulot", callback_data=f"{prefix}_add_more")],
-            [InlineKeyboardButton(text="💳 To'lov turini tanlash", callback_data=f"{prefix}_choose_payment")],
-            [InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"{prefix}_cancel")],
-        ]
+def admin_cart_keyboard(prefix: str, items_count: int = 0) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+
+    for i in range(items_count):
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"❌ {i + 1}-mahsulotni o'chirish",
+                    callback_data=f"{prefix}_remove:{i}",
+                )
+            ]
+        )
+
+    if items_count > 0:
+        rows.append(
+            [InlineKeyboardButton(text="🧹 Korzinani tozalash", callback_data=f"{prefix}_clear")]
+        )
+
+    rows.append(
+        [InlineKeyboardButton(text="➕ Yana mahsulot", callback_data=f"{prefix}_add_more")]
     )
+    rows.append(
+        [InlineKeyboardButton(text="💳 To'lov turini tanlash", callback_data=f"{prefix}_choose_payment")]
+    )
+    rows.append(
+        [InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"{prefix}_cancel")]
+    )
+
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def admin_payment_type_keyboard(prefix: str) -> InlineKeyboardMarkup:

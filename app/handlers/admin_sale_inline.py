@@ -36,7 +36,6 @@ from app.states.admin_sale_inline_state import (
     AdminInlinePaymentState,
     AdminInlineSaleState,
 )
-from app.utils.statuses import uzbek_order_status
 
 router = Router()
 
@@ -63,11 +62,28 @@ def fmt(value: Decimal | float | int | str) -> str:
     return text
 
 
+def uz_status(status: str | None) -> str:
+    mapping = {
+        "pending": "Kutilmoqda",
+        "approved": "Tasdiqlangan",
+        "rejected": "Rad etilgan",
+        "cancelled": "Bekor qilingan",
+        "draft": "Qoralama",
+        "unpaid": "To'lanmagan",
+        "partial": "Qisman to'langan",
+        "paid": "To'langan",
+        "overdue": "Kechikkan",
+    }
+    if not status:
+        return "Noma'lum"
+    return mapping.get(str(status).lower(), str(status))
+
+
 def build_cart_text(items: list[dict]) -> str:
     if not items:
         return "Korzina bo'sh."
 
-    lines = ["Korzina:\n"]
+    lines = ["🛒 Korzina:\n"]
     total = Decimal("0")
 
     for index, item in enumerate(items, start=1):
@@ -83,7 +99,7 @@ def build_cart_text(items: list[dict]) -> str:
             f"   Jami: {fmt(line_total)} so'm\n"
         )
 
-    lines.append(f"Umumiy jami: {fmt(total)} so'm")
+    lines.append(f"💰 Umumiy jami: {fmt(total)} so'm")
     return "\n".join(lines)
 
 
@@ -101,7 +117,11 @@ def append_item_to_cart(data: dict, qty: Decimal) -> list[dict]:
     return items
 
 
-async def show_sale_customers(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def show_sale_customers(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     customers = await list_customers(session, limit=30)
     if not customers:
         if callback.message:
@@ -128,7 +148,11 @@ async def show_sale_customers(callback: CallbackQuery, state: FSMContext, sessio
     await callback.answer()
 
 
-async def show_sale_categories(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def show_sale_categories(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     categories = await list_active_categories(session)
     if not categories:
         await callback.answer("Kategoriya topilmadi", show_alert=True)
@@ -143,7 +167,11 @@ async def show_sale_categories(callback: CallbackQuery, state: FSMContext, sessi
     await callback.answer()
 
 
-async def show_sale_products(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def show_sale_products(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     data = await state.get_data()
     category = data.get("current_category")
     if not category:
@@ -169,7 +197,11 @@ async def show_sale_products(callback: CallbackQuery, state: FSMContext, session
     await callback.answer()
 
 
-async def show_payment_customers(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def show_payment_customers(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     customers = await list_customers(session, limit=30)
     if not customers:
         if callback.message:
@@ -196,7 +228,11 @@ async def show_payment_customers(callback: CallbackQuery, state: FSMContext, ses
 
 
 @router.callback_query(F.data == "admin_menu:new_sale")
-async def start_inline_sale(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def start_inline_sale(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
@@ -204,7 +240,11 @@ async def start_inline_sale(callback: CallbackQuery, state: FSMContext, session:
 
 
 @router.callback_query(F.data == "admin_sale_back_customers")
-async def sale_back_customers(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def sale_back_customers(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
@@ -227,7 +267,11 @@ async def sale_cancel(callback: CallbackQuery, state: FSMContext) -> None:
 
 
 @router.callback_query(F.data.startswith("admin_sale_customer:"))
-async def sale_choose_customer(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def sale_choose_customer(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
@@ -238,12 +282,20 @@ async def sale_choose_customer(callback: CallbackQuery, state: FSMContext, sessi
         await callback.answer("Mijoz topilmadi", show_alert=True)
         return
 
-    await state.update_data(customer_id=customer.id, customer_name=customer.full_name, items=[])
+    await state.update_data(
+        customer_id=customer.id,
+        customer_name=customer.full_name,
+        items=[],
+    )
     await show_sale_categories(callback, state, session)
 
 
 @router.callback_query(F.data.startswith("admin_sale_category:"))
-async def sale_choose_category(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def sale_choose_category(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
@@ -254,7 +306,11 @@ async def sale_choose_category(callback: CallbackQuery, state: FSMContext, sessi
 
 
 @router.callback_query(F.data == "admin_sale_back_categories")
-async def sale_back_categories(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def sale_back_categories(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
@@ -262,7 +318,11 @@ async def sale_back_categories(callback: CallbackQuery, state: FSMContext, sessi
 
 
 @router.callback_query(F.data.startswith("admin_sale_product:"))
-async def sale_choose_product(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def sale_choose_product(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
@@ -298,7 +358,11 @@ async def sale_choose_product(callback: CallbackQuery, state: FSMContext, sessio
 
 
 @router.callback_query(F.data == "admin_sale_back_products")
-async def sale_back_products(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def sale_back_products(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
@@ -306,7 +370,10 @@ async def sale_back_products(callback: CallbackQuery, state: FSMContext, session
 
 
 @router.callback_query(F.data.startswith("admin_sale_qty:"))
-async def sale_choose_qty_preset(callback: CallbackQuery, state: FSMContext) -> None:
+async def sale_choose_qty_preset(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
@@ -329,7 +396,7 @@ async def sale_choose_qty_preset(callback: CallbackQuery, state: FSMContext) -> 
     if callback.message:
         await callback.message.edit_text(
             build_cart_text(items),
-            reply_markup=admin_cart_keyboard("admin_sale"),
+            reply_markup=admin_cart_keyboard("admin_sale", len(items)),
         )
     await callback.answer()
 
@@ -360,7 +427,8 @@ async def sale_qty_custom_message(message: Message, state: FSMContext) -> None:
     stock = Decimal(str(data["current_product_stock"]))
     if qty > stock:
         await message.answer(
-            f"Buncha mahsulot yo'q.\nMavjud qoldiq: {fmt(stock)} {data['current_product_unit']}"
+            f"Buncha mahsulot yo'q.\n"
+            f"Mavjud qoldiq: {fmt(stock)} {data['current_product_unit']}"
         )
         return
 
@@ -370,12 +438,74 @@ async def sale_qty_custom_message(message: Message, state: FSMContext) -> None:
 
     await message.answer(
         build_cart_text(items),
-        reply_markup=admin_cart_keyboard("admin_sale"),
+        reply_markup=admin_cart_keyboard("admin_sale", len(items)),
     )
 
 
+@router.callback_query(F.data.startswith("admin_sale_remove:"))
+async def sale_remove_item(callback: CallbackQuery, state: FSMContext) -> None:
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+
+    data = await state.get_data()
+    items = data.get("items", []).copy()
+
+    try:
+        index = int(callback.data.split(":")[1])
+    except (IndexError, ValueError):
+        await callback.answer("Xatolik", show_alert=True)
+        return
+
+    if index < 0 or index >= len(items):
+        await callback.answer("Mahsulot topilmadi", show_alert=True)
+        return
+
+    removed = items.pop(index)
+    await state.update_data(items=items)
+
+    if items:
+        await state.set_state(AdminInlineSaleState.add_more)
+        if callback.message:
+            await callback.message.edit_text(
+                build_cart_text(items),
+                reply_markup=admin_cart_keyboard("admin_sale", len(items)),
+            )
+        await callback.answer(f"{removed['product_name']} o'chirildi")
+        return
+
+    await state.set_state(AdminInlineSaleState.add_more)
+    if callback.message:
+        await callback.message.edit_text(
+            "Korzina bo'sh.",
+            reply_markup=admin_cart_keyboard("admin_sale", 0),
+        )
+    await callback.answer("Korzina bo'shadi")
+
+
+@router.callback_query(F.data == "admin_sale_clear")
+async def sale_clear_cart(callback: CallbackQuery, state: FSMContext) -> None:
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+
+    await state.update_data(items=[])
+    await state.set_state(AdminInlineSaleState.add_more)
+
+    if callback.message:
+        await callback.message.edit_text(
+            "Korzina tozalandi.",
+            reply_markup=admin_cart_keyboard("admin_sale", 0),
+        )
+    await callback.answer("Tozalandi")
+
+
 @router.callback_query(F.data == "admin_sale_add_more")
-async def sale_add_more(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def sale_add_more(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
@@ -414,7 +544,7 @@ async def sale_back_cart(callback: CallbackQuery, state: FSMContext) -> None:
     if callback.message:
         await callback.message.edit_text(
             build_cart_text(items),
-            reply_markup=admin_cart_keyboard("admin_sale"),
+            reply_markup=admin_cart_keyboard("admin_sale", len(items)),
         )
     await state.set_state(AdminInlineSaleState.add_more)
     await callback.answer()
@@ -467,7 +597,11 @@ async def sale_confirm_no(callback: CallbackQuery, state: FSMContext) -> None:
 
 
 @router.callback_query(F.data == "admin_sale_confirm_yes")
-async def sale_confirm_yes(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def sale_confirm_yes(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
@@ -520,7 +654,11 @@ async def sale_confirm_yes(callback: CallbackQuery, state: FSMContext, session: 
     )
 
     for product_id, total_qty in product_map.items():
-        updated_product = await reduce_product_stock(session, product_objects[product_id], total_qty)
+        updated_product = await reduce_product_stock(
+            session,
+            product_objects[product_id],
+            total_qty,
+        )
         await send_low_stock_alert(
             bot=callback.bot,
             product_name=updated_product.name,
@@ -537,14 +675,18 @@ async def sale_confirm_yes(callback: CallbackQuery, state: FSMContext, session: 
             f"Mijoz: {data['customer_name']}\n"
             f"Jami: {fmt(data['total_amount'])} so'm\n"
             f"To'lov turi: {data['payment_type']}\n"
-            f"Holat: {uzbek_order_status(order.status)}",
+            f"Holat: {uz_status(order.status)}",
             reply_markup=admin_back_home_keyboard(),
         )
     await callback.answer("Saqlandi")
 
 
 @router.callback_query(F.data == "admin_menu:payments")
-async def start_inline_payment(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def start_inline_payment(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
@@ -567,7 +709,11 @@ async def payment_cancel(callback: CallbackQuery, state: FSMContext) -> None:
 
 
 @router.callback_query(F.data.startswith("admin_payment_customer:"))
-async def payment_choose_customer(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def payment_choose_customer(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
@@ -600,7 +746,10 @@ async def payment_choose_customer(callback: CallbackQuery, state: FSMContext, se
             }
         )
 
-    await state.update_data(customer_id=customer.id, customer_name=customer.full_name)
+    await state.update_data(
+        customer_id=customer.id,
+        customer_name=customer.full_name,
+    )
     await state.set_state(AdminInlinePaymentState.order)
 
     if callback.message:
@@ -612,7 +761,11 @@ async def payment_choose_customer(callback: CallbackQuery, state: FSMContext, se
 
 
 @router.callback_query(F.data == "admin_payment_back_orders")
-async def payment_back_orders(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def payment_back_orders(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
@@ -655,7 +808,11 @@ async def payment_back_orders(callback: CallbackQuery, state: FSMContext, sessio
 
 
 @router.callback_query(F.data.startswith("admin_payment_order:"))
-async def payment_choose_order(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def payment_choose_order(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
@@ -679,7 +836,7 @@ async def payment_choose_order(callback: CallbackQuery, state: FSMContext, sessi
         await callback.message.edit_text(
             f"Buyurtma ID: {order.id}\n"
             f"Qoldiq: {fmt(left)} so'm\n"
-            f"Holat: {uzbek_order_status(order.status)}\n\n"
+            f"Holat: {uz_status(order.status)}\n\n"
             "To'lov turini tanlang:",
             reply_markup=admin_payment_amount_keyboard(order.id, fmt(left)),
         )
@@ -687,7 +844,11 @@ async def payment_choose_order(callback: CallbackQuery, state: FSMContext, sessi
 
 
 @router.callback_query(F.data.startswith("admin_payment_full:"))
-async def payment_full(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def payment_full(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
@@ -716,7 +877,7 @@ async def payment_full(callback: CallbackQuery, state: FSMContext, session: Asyn
             f"To'lov ID: {payment.id}\n"
             f"Buyurtma ID: {order.id}\n"
             f"To'lov summasi: {fmt(payment.amount)} so'm\n"
-            f"Yangi holat: {uzbek_order_status(order.status)}\n"
+            f"Yangi holat: {uz_status(order.status)}\n"
             f"Jami to'langan: {fmt(order.paid_amount)} so'm",
             reply_markup=admin_back_home_keyboard(),
         )
@@ -724,7 +885,11 @@ async def payment_full(callback: CallbackQuery, state: FSMContext, session: Asyn
 
 
 @router.callback_query(F.data.startswith("admin_payment_custom:"))
-async def payment_custom(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+async def payment_custom(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
@@ -747,13 +912,17 @@ async def payment_custom(callback: CallbackQuery, state: FSMContext, session: As
             f"Qisman to'lov summasini yuboring.\n\n"
             f"Buyurtma ID: {order.id}\n"
             f"Qoldiq: {fmt(left)} so'm\n"
-            f"Holat: {uzbek_order_status(order.status)}"
+            f"Holat: {uz_status(order.status)}"
         )
     await callback.answer()
 
 
 @router.message(AdminInlinePaymentState.custom_amount)
-async def payment_custom_amount_message(message: Message, state: FSMContext, session: AsyncSession) -> None:
+async def payment_custom_amount_message(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
     if not is_admin(message):
         return
 
@@ -794,7 +963,7 @@ async def payment_custom_amount_message(message: Message, state: FSMContext, ses
         f"To'lov ID: {payment.id}\n"
         f"Buyurtma ID: {order.id}\n"
         f"To'lov summasi: {fmt(payment.amount)} so'm\n"
-        f"Yangi holat: {uzbek_order_status(order.status)}\n"
+        f"Yangi holat: {uz_status(order.status)}\n"
         f"Jami to'langan: {fmt(order.paid_amount)} so'm",
         reply_markup=admin_back_home_keyboard(),
     )
