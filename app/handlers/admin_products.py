@@ -72,7 +72,10 @@ async def add_product_name(
         return
     existing = await get_product_by_name(session, name)
     if existing:
-        await message.answer("Bu nom bilan mahsulot allaqachon mavjud.\nBoshqa nom kiriting.")
+        await message.answer(
+            "Bu nom bilan mahsulot allaqachon mavjud.\n"
+            "Boshqa nom kiriting."
+        )
         return
     await state.update_data(name=name)
     await state.set_state(AddProductState.category)
