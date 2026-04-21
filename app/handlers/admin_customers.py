@@ -1,10 +1,10 @@
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.keyboards.admin_panel_inline import admin_main_keyboard  # to'g'ri
-from app.keyboards.reply import cancel_keyboard, customers_menu_keyboard
+from app.keyboards.customers_inline import customers_cancel_keyboard, customers_main_keyboard
+from app.keyboards.admin_panel_inline import admin_main_keyboard
 from app.services.customers import (
     create_customer,
     get_customer_by_phone,
@@ -16,36 +16,42 @@ from app.utils.helpers import is_admin
 
 router = Router()
 
-@router.message(F.text == "👥 Mijozlar")
-async def customers_menu(message: Message, state: FSMContext) -> None:
-    if not is_admin(message):
+
+@router.callback_query(F.data == "admin_menu:customers")
+async def customers_menu(callback: CallbackQuery, state: FSMContext) -> None:
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
         return
     await state.clear()
-    await message.answer("Mijozlar bo'limi.", reply_markup=customers_menu_keyboard())
+    if callback.message:
+        await callback.message.edit_text("Mijozlar bo'limi:", reply_markup=customers_main_keyboard())
+    await callback.answer()
 
-@router.message(F.text == "⬅️ Orqaga")
-async def back_to_admin_menu(message: Message, state: FSMContext) -> None:
-    if not is_admin(message):
-        return
-    await state.clear()
-    await message.answer("Admin panelga qaytdingiz.", reply_markup=admin_main_keyboard())
 
-@router.message(F.text == "➕ Mijoz qo'shish")
-async def add_customer_start(message: Message, state: FSMContext) -> None:
-    if not is_admin(message):
+@router.callback_query(F.data == "admin_customers:add")
+async def add_customer_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
         return
     await state.set_state(AddCustomerState.full_name)
-    await message.answer(
-        "Yangi mijozning ism-familiyasini yuboring.\n\nMasalan: Ali Valiyev",
-        reply_markup=cancel_keyboard(),
-    )
+    if callback.message:
+        await callback.message.edit_text(
+            "Yangi mijozning ism-familiyasini yuboring.\n\nMasalan: Ali Valiyev",
+            reply_markup=customers_cancel_keyboard(),
+        )
+    await callback.answer()
 
-@router.message(F.text == "❌ Bekor qilish")
-async def cancel_any_state(message: Message, state: FSMContext) -> None:
-    if not is_admin(message):
+
+@router.callback_query(F.data == "admin_customers:cancel")
+async def cancel_any_state(callback: CallbackQuery, state: FSMContext) -> None:
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
         return
     await state.clear()
-    await message.answer("Amal bekor qilindi.", reply_markup=admin_main_keyboard())
+    if callback.message:
+        await callback.message.edit_text("Amal bekor qilindi.", reply_markup=admin_main_keyboard())
+    await callback.answer()
+
 
 @router.message(AddCustomerState.full_name)
 async def add_customer_full_name(message: Message, state: FSMContext) -> None:
@@ -53,11 +59,15 @@ async def add_customer_full_name(message: Message, state: FSMContext) -> None:
         return
     full_name = (message.text or "").strip()
     if len(full_name) < 3:
-        await message.answer("Iltimos, ism-familiyani to'g'ri kiriting.")
+        await message.answer("Iltimos, ism-familiyani to'g'ri kiriting.", reply_markup=customers_cancel_keyboard())
         return
     await state.update_data(full_name=full_name)
     await state.set_state(AddCustomerState.phone)
-    await message.answer("Telefon raqamini yuboring.\n\nMasalan: +998901234567 yoki 901234567")
+    await message.answer(
+        "Telefon raqamini yuboring.\n\nMasalan: +998901234567 yoki 901234567",
+        reply_markup=customers_cancel_keyboard(),
+    )
+
 
 @router.message(AddCustomerState.phone)
 async def add_customer_phone(
@@ -69,18 +79,20 @@ async def add_customer_phone(
         return
     phone = (message.text or "").strip().replace(" ", "")
     if len(phone) < 9:
-        await message.answer("Telefon raqamini to'g'ri kiriting.")
+        await message.answer("Telefon raqamini to'g'ri kiriting.", reply_markup=customers_cancel_keyboard())
         return
     existing_customer = await get_customer_by_phone(session, phone)
     if existing_customer:
         await message.answer(
             "Bu telefon raqam bilan mijoz allaqachon mavjud.\n"
-            "Boshqa raqam kiriting yoki amalni bekor qiling."
+            "Boshqa raqam kiriting yoki amalni bekor qiling.",
+            reply_markup=customers_cancel_keyboard(),
         )
         return
     await state.update_data(phone=phone)
     await state.set_state(AddCustomerState.address)
-    await message.answer("Manzilni yuboring.\n\nAgar kerak bo'lmasa, '-' yuboring.")
+    await message.answer("Manzilni yuboring.\n\nAgar kerak bo'lmasa, '-' yuboring.", reply_markup=customers_cancel_keyboard())
+
 
 @router.message(AddCustomerState.address)
 async def add_customer_address(message: Message, state: FSMContext) -> None:
@@ -89,7 +101,8 @@ async def add_customer_address(message: Message, state: FSMContext) -> None:
     address = (message.text or "").strip()
     await state.update_data(address=None if address == "-" else address)
     await state.set_state(AddCustomerState.note)
-    await message.answer("Izoh yuboring.\n\nAgar kerak bo'lmasa, '-' yuboring.")
+    await message.answer("Izoh yuboring.\n\nAgar kerak bo'lmasa, '-' yuboring.", reply_markup=customers_cancel_keyboard())
+
 
 @router.message(AddCustomerState.note)
 async def add_customer_note(
@@ -116,19 +129,23 @@ async def add_customer_note(
         f"Ism: {customer.full_name}\n"
         f"Telefon: {customer.phone}\n"
         f"Holat: {customer.status}",
-        reply_markup=customers_menu_keyboard(),
+        reply_markup=customers_main_keyboard(),
     )
 
-@router.message(F.text == "📋 Mijozlar ro'yxati")
-async def customers_list(message: Message, session: AsyncSession) -> None:
-    if not is_admin(message):
+
+@router.callback_query(F.data == "admin_customers:list")
+async def customers_list(callback: CallbackQuery, session: AsyncSession) -> None:
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
         return
     customers = await list_customers(session=session, limit=20)
     if not customers:
-        await message.answer(
-            "Hozircha mijozlar mavjud emas.",
-            reply_markup=customers_menu_keyboard(),
-        )
+        if callback.message:
+            await callback.message.edit_text(
+                "Hozircha mijozlar mavjud emas.",
+                reply_markup=customers_main_keyboard(),
+            )
+        await callback.answer()
         return
     lines = ["So'nggi mijozlar ro'yxati:\n"]
     for index, customer in enumerate(customers, start=1):
@@ -137,18 +154,27 @@ async def customers_list(message: Message, session: AsyncSession) -> None:
             f"   Telefon: {customer.phone}\n"
             f"   Holat: {customer.status}\n"
         )
-    await message.answer("\n".join(lines), reply_markup=customers_menu_keyboard())
+    if callback.message:
+        await callback.message.edit_text(
+            "\n".join(lines),
+            reply_markup=customers_main_keyboard(),
+        )
+    await callback.answer()
 
-@router.message(F.text == "🔎 Mijoz qidirish")
-async def search_customer_start(message: Message, state: FSMContext) -> None:
-    if not is_admin(message):
+
+@router.callback_query(F.data == "admin_customers:search")
+async def search_customer_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
         return
     await state.set_state(SearchCustomerState.query)
-    await message.answer(
-        "Qidirish uchun ism yoki telefon yuboring.\n\n"
-        "Masalan: Ali\nyoki\n+998901234567",
-        reply_markup=cancel_keyboard(),
-    )
+    if callback.message:
+        await callback.message.edit_text(
+            "Qidirish uchun ism yoki telefon yuboring.\n\nMasalan: Ali\nyoki\n+998901234567",
+            reply_markup=customers_cancel_keyboard(),
+        )
+    await callback.answer()
+
 
 @router.message(SearchCustomerState.query)
 async def search_customer_query(
@@ -160,13 +186,13 @@ async def search_customer_query(
         return
     query = (message.text or "").strip()
     if len(query) < 2:
-        await message.answer("Qidiruv uchun kamida 2 ta belgi kiriting.")
+        await message.answer("Qidiruv uchun kamida 2 ta belgi kiriting.", reply_markup=customers_cancel_keyboard())
         return
     customers = await search_customers(session=session, query=query, limit=20)
     if not customers:
         await message.answer(
             "Hech narsa topilmadi.",
-            reply_markup=customers_menu_keyboard(),
+            reply_markup=customers_main_keyboard(),
         )
         await state.clear()
         return
@@ -178,5 +204,8 @@ async def search_customer_query(
             f"   Holat: {customer.status}\n"
             f"   Manzil: {customer.address or 'kiritilmagan'}\n"
         )
-    await message.answer("\n".join(lines), reply_markup=customers_menu_keyboard())
+    await message.answer(
+        "\n".join(lines),
+        reply_markup=customers_main_keyboard(),
+    )
     await state.clear()

@@ -1,148 +1,78 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
 
 
-def admin_customers_keyboard(customers: list[dict], prefix: str) -> InlineKeyboardMarkup:
-    rows = []
-    for customer in customers:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text=f"{customer['name']} — {customer['phone']}",
-                    callback_data=f"{prefix}_customer:{customer['id']}",
-                )
-            ]
-        )
-
-    rows.append([InlineKeyboardButton(text="⬅️ Bosh menyu", callback_data="admin_menu:home")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-def admin_categories_keyboard(categories: list[str], prefix: str) -> InlineKeyboardMarkup:
-    rows = []
-    for category in categories:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text=category.title(),
-                    callback_data=f"{prefix}_category:{category}",
-                )
-            ]
-        )
-
-    rows.append([InlineKeyboardButton(text="⬅️ Mijozlar", callback_data=f"{prefix}_back_customers")])
-    rows.append([InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"{prefix}_cancel")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-def admin_products_keyboard(products: list[dict], prefix: str) -> InlineKeyboardMarkup:
-    rows = []
-    for product in products:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text=f"{product['name']} — {product['price_text']} so'm",
-                    callback_data=f"{prefix}_product:{product['id']}",
-                )
-            ]
-        )
-
-    rows.append([InlineKeyboardButton(text="⬅️ Kategoriyalar", callback_data=f"{prefix}_back_categories")])
-    rows.append([InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"{prefix}_cancel")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-def admin_quantity_keyboard(prefix: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text="1", callback_data=f"{prefix}_qty:1"),
-                InlineKeyboardButton(text="2", callback_data=f"{prefix}_qty:2"),
-                InlineKeyboardButton(text="5", callback_data=f"{prefix}_qty:5"),
-                InlineKeyboardButton(text="10", callback_data=f"{prefix}_qty:10"),
-            ],
-            [InlineKeyboardButton(text="✍️ Boshqa miqdor", callback_data=f"{prefix}_qty_custom")],
-            [InlineKeyboardButton(text="⬅️ Mahsulotlar", callback_data=f"{prefix}_back_products")],
-            [InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"{prefix}_cancel")],
-        ]
+def main_menu_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🛍 Buyurtma berish")],
+            [KeyboardButton(text="💳 Mening qarzim")],
+            [KeyboardButton(text="📦 Buyurtmalarim")],
+            [KeyboardButton(text="☎️ Aloqa")],
+        ],
+        resize_keyboard=True,
     )
 
 
-# 🔥 YANGILANGAN KORZINA
-def admin_cart_keyboard(prefix: str, items_count: int = 0) -> InlineKeyboardMarkup:
-    rows = []
-
-    # ❌ Har bir item uchun delete
-    for i in range(items_count):
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text=f"❌ {i+1}-mahsulotni o'chirish",
-                    callback_data=f"{prefix}_remove:{i}",
-                )
-            ]
-        )
-
-    # 🧹 tozalash
-    if items_count > 0:
-        rows.append(
-            [InlineKeyboardButton(text="🧹 Korzinani tozalash", callback_data=f"{prefix}_clear")]
-        )
-
-    rows.extend(
-        [
-            [InlineKeyboardButton(text="➕ Yana mahsulot", callback_data=f"{prefix}_add_more")],
-            [InlineKeyboardButton(text="💳 To'lov", callback_data=f"{prefix}_choose_payment")],
-            [InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"{prefix}_cancel")],
-        ]
-    )
-
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-def admin_payment_type_keyboard(prefix: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="💵 Naqd", callback_data=f"{prefix}_payment:naqd")],
-            [InlineKeyboardButton(text="🕒 Nasiya", callback_data=f"{prefix}_payment:nasiya")],
-            [InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"{prefix}_back_cart")],
-            [InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"{prefix}_cancel")],
-        ]
+def admin_menu_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🔄 Admin panelni ochish")],
+            [KeyboardButton(text="👥 Mijozlar")],
+            [KeyboardButton(text="📦 Mahsulotlar")],
+            [KeyboardButton(text="📥 Buyurtma so'rovlari")],
+            [KeyboardButton(text="💰 To'lov kiritish")],
+            [KeyboardButton(text="📉 Qarzdorlar")],
+            [KeyboardButton(text="📚 Buyurtmalar tarixi")],
+            [KeyboardButton(text="📊 Hisobotlar")],
+            [KeyboardButton(text="⏰ Kechikkan qarzlar")],
+            [KeyboardButton(text="🧮 Qoldiqni to'g'rilash")],
+        ],
+        resize_keyboard=True,
     )
 
 
-def admin_confirm_sale_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Saqlash", callback_data="admin_sale_confirm_yes")],
-            [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_sale_confirm_no")],
-        ]
+def customers_menu_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="➕ Mijoz qo'shish")],
+            [KeyboardButton(text="📋 Mijozlar ro'yxati")],
+            [KeyboardButton(text="🔎 Mijoz qidirish")],
+            [KeyboardButton(text="⬅️ Orqaga")],
+        ],
+        resize_keyboard=True,
     )
 
 
-def admin_orders_keyboard(orders: list[dict]) -> InlineKeyboardMarkup:
-    rows = []
-
-    for order in orders:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text=f"ID {order['id']} • {order['left_text']} so'm",
-                    callback_data=f"admin_payment_order:{order['id']}",
-                )
-            ]
-        )
-
-    rows.append([InlineKeyboardButton(text="⬅️ Bosh menyu", callback_data="admin_menu:home")])
-    rows.append([InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_payment_cancel")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-def admin_payment_amount_keyboard(order_id: int, left_text: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=f"💯 To'liq ({left_text})", callback_data=f"admin_payment_full:{order_id}")],
-            [InlineKeyboardButton(text="✍️ Qisman", callback_data=f"admin_payment_custom:{order_id}")],
-            [InlineKeyboardButton(text="⬅️ Orqaga", callback_data="admin_payment_back_orders")],
-            [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_payment_cancel")],
-        ]
+def products_menu_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="➕ Mahsulot qo'shish")],
+            [KeyboardButton(text="📋 Mahsulotlar ro'yxati")],
+            [KeyboardButton(text="🔎 Mahsulot qidirish")],
+            [KeyboardButton(text="✏️ Mahsulotni tahrirlash")],
+            [KeyboardButton(text="✏️ Narxni o'zgartirish")],
+            [KeyboardButton(text="📥 Qoldiq qo'shish")],
+            [KeyboardButton(text="🗃 Mahsulotni arxivlash")],
+            [KeyboardButton(text="⬅️ Orqaga")],
+        ],
+        resize_keyboard=True,
     )
+
+
+def cancel_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="❌ Bekor qilish")]],
+        resize_keyboard=True,
+    )
+
+
+def contact_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="📞 Telefon raqamni yuborish", request_contact=True)]],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+
+
+def remove_keyboard() -> ReplyKeyboardRemove:
+    return ReplyKeyboardRemove()
