@@ -1,33 +1,17 @@
-from decimal import Decimal
-
 from aiogram import F, Router
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
-from app.services.reports import (
-    get_current_year_month,
-    get_monthly_report,
-    get_monthly_top_products,
-)
+from app.services.reports import get_current_year_month, get_monthly_report, get_monthly_top_products
+from app.utils.helpers import is_admin, fmt
 
 router = Router()
-
-
-def is_admin(message: Message):
-    return bool(message.from_user and message.from_user.id in settings.admin_ids)
-
-
-def fmt(x):
-    t = format(Decimal(str(x)), "f")
-    return t.rstrip("0").rstrip(".") if "." in t else t
 
 
 @router.message(F.text == "📊 Hisobotlar")
 async def monthly_report(message: Message, session: AsyncSession):
     if not is_admin(message):
         return
-
     year, month = get_current_year_month()
     report = await get_monthly_report(session, year, month)
     top_products = await get_monthly_top_products(session, year, month, limit=5)
@@ -41,13 +25,9 @@ async def monthly_report(message: Message, session: AsyncSession):
         "",
         "Tez sotilayotgan mahsulotlar:",
     ]
-
     if top_products:
         for index, item in enumerate(top_products, start=1):
-            lines.append(
-                f"{index}. {item['name']} — {fmt(item['sold_qty'])} dona"
-            )
+            lines.append(f"{index}. {item['name']} — {fmt(item['sold_qty'])} dona")
     else:
         lines.append("Hozircha sotuv statistikasi yo'q.")
-
     await message.answer("\n".join(lines))

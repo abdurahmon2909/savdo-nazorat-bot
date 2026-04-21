@@ -1,6 +1,5 @@
 from datetime import datetime
 from decimal import Decimal
-
 from aiogram import F, Router
 from aiogram.filters import CommandStart
 from aiogram.types import Contact, Message
@@ -22,28 +21,15 @@ from app.services.customers import (
 from app.services.order_requests import list_customer_order_requests
 from app.services.orders import list_customer_orders, list_customer_open_orders
 from app.services.users import create_or_update_user, get_user_by_telegram_id
+from app.utils.helpers import fmt, log_error
 from app.utils.statuses import uzbek_order_status
+from app.utils.timezone import format_datetime_tashkent
 
 router = Router()
 
 
 def role(uid: int) -> str:
     return "admin" if uid in settings.admin_ids else "mijoz"
-
-
-def fmt(x) -> str:
-    t = format(Decimal(str(x)), "f")
-    return t.rstrip("0").rstrip(".") if "." in t else t
-
-
-def fmt_dt(dt_value) -> str:
-    if dt_value is None:
-        return "Noma'lum vaqt"
-
-    try:
-        return dt_value.strftime("%d-%m-%Y %H:%M")
-    except Exception:
-        return str(dt_value)
 
 
 @router.message(CommandStart())
@@ -140,7 +126,7 @@ async def my_debt(message: Message, session: AsyncSession):
 
         out.append(
             f"Buyurtma ID: {o.id}\n"
-            f"Sana: {fmt_dt(o.created_at)}\n"
+            f"Sana: {format_datetime_tashkent(o.created_at)}\n"
             f"Jami: {fmt(t)} so'm\n"
             f"To'langan: {fmt(p)} so'm\n"
             f"Qoldiq: {fmt(l)} so'm\n"
@@ -148,7 +134,6 @@ async def my_debt(message: Message, session: AsyncSession):
         )
 
     out.append(f"Jami qarz: {fmt(total)} so'm")
-
     await message.answer("\n".join(out))
 
 
@@ -185,7 +170,7 @@ async def my_orders(message: Message, session: AsyncSession):
         for req in requests:
             out.append(
                 f"So'rov ID: {req.id}\n"
-                f"Sana: {fmt_dt(req.created_at)}\n"
+                f"Sana: {format_datetime_tashkent(req.created_at)}\n"
                 f"Jami: {fmt(req.total_amount)} so'm\n"
                 f"To'lov turi: {req.payment_type}\n"
                 f"Holat: {uzbek_order_status(req.status)}\n"
@@ -200,7 +185,7 @@ async def my_orders(message: Message, session: AsyncSession):
 
             out.append(
                 f"Buyurtma ID: {o.id}\n"
-                f"Sana: {fmt_dt(o.created_at)}\n"
+                f"Sana: {format_datetime_tashkent(o.created_at)}\n"
                 f"Jami: {fmt(t)} so'm\n"
                 f"To'langan: {fmt(p)} so'm\n"
                 f"Qoldiq: {fmt(l)} so'm\n"

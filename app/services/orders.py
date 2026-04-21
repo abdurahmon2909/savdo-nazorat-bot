@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.order import Order
 from app.models.order_item import OrderItem
+from app.utils.timezone import now_utc
 
 
 async def create_order(
@@ -47,9 +48,7 @@ async def create_order(
 
 
 async def get_order_by_id(session: AsyncSession, order_id: int) -> Order | None:
-    result = await session.execute(
-        select(Order).where(Order.id == order_id)
-    )
+    result = await session.execute(select(Order).where(Order.id == order_id))
     return result.scalar_one_or_none()
 
 
@@ -77,11 +76,7 @@ async def list_customer_open_orders(session: AsyncSession, customer_id: int, lim
 
 
 async def list_recent_orders(session: AsyncSession, limit: int = 50):
-    result = await session.execute(
-        select(Order)
-        .order_by(desc(Order.id))
-        .limit(limit)
-    )
+    result = await session.execute(select(Order).order_by(desc(Order.id)).limit(limit))
     return list(result.scalars().all())
 
 
@@ -96,8 +91,7 @@ async def list_debtor_orders(session: AsyncSession, limit: int = 50):
 
 
 async def list_overdue_orders(session: AsyncSession, days: int = 7, limit: int = 50):
-    border = datetime.utcnow() - timedelta(days=days)
-
+    border = now_utc() - timedelta(days=days)
     result = await session.execute(
         select(Order)
         .where(

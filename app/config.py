@@ -1,4 +1,5 @@
 import os
+from decimal import Decimal
 
 
 class Settings:
@@ -6,6 +7,7 @@ class Settings:
         self.bot_token: str = os.getenv("BOT_TOKEN", "").strip()
         raw_db_url = os.getenv("DATABASE_URL", "").strip()
         raw_admin_ids = os.getenv("ADMIN_IDS", "").strip()
+        self.low_stock_threshold = Decimal(os.getenv("LOW_STOCK_THRESHOLD", "5"))
 
         if not self.bot_token:
             raise ValueError("BOT_TOKEN topilmadi. Railway Variables ichiga qo'shing.")

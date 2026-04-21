@@ -1,17 +1,8 @@
 from decimal import Decimal
-
 from aiogram import Bot
 
 from app.config import settings
-
-LOW_STOCK_THRESHOLD = Decimal("5")
-
-
-def format_number(value: Decimal | float | int | str) -> str:
-    text = format(Decimal(str(value)), "f")
-    if "." in text:
-        text = text.rstrip("0").rstrip(".")
-    return text
+from app.utils.helpers import format_number
 
 
 async def send_low_stock_alert(
@@ -20,14 +11,15 @@ async def send_low_stock_alert(
     stock_quantity: Decimal,
     unit: str,
 ) -> None:
-    if Decimal(str(stock_quantity)) > LOW_STOCK_THRESHOLD:
+    threshold = settings.low_stock_threshold
+    if Decimal(str(stock_quantity)) > threshold:
         return
 
     text = (
         "⚠️ Mahsulot qoldig'i kamaydi.\n\n"
         f"Mahsulot: {product_name}\n"
         f"Qoldiq: {format_number(stock_quantity)} {unit}\n"
-        f"Chegara: {format_number(LOW_STOCK_THRESHOLD)} {unit}"
+        f"Chegara: {format_number(threshold)} {unit}"
     )
 
     for admin_id in settings.admin_ids:
