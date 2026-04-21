@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.services.customers import get_customer_by_id
 from app.services.orders import list_recent_orders
+from app.utils.statuses import uzbek_order_status
 
 router = Router()
 
@@ -22,7 +23,6 @@ def format_number(value):
     return text
 
 
-# ⚠️ MUHIM: text EXACT mos bo‘lishi kerak
 @router.message(F.text == "📚 Buyurtmalar tarixi")
 async def show_order_history(message: Message, session: AsyncSession):
     if not is_admin(message):
@@ -50,7 +50,7 @@ async def show_order_history(message: Message, session: AsyncSession):
             f"Jami: {format_number(total)} so'm\n"
             f"To‘langan: {format_number(paid)} so'm\n"
             f"Qoldiq: {format_number(left)} so'm\n"
-            f"Holat: {order.status}\n"
+            f"Holat: {uzbek_order_status(order.status)}\n"
         )
 
     await message.answer("\n".join(lines))

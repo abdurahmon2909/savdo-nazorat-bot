@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.services.customers import get_customer_by_id
 from app.services.orders import list_debtor_orders
+from app.utils.statuses import uzbek_order_status
 
 router = Router()
 
@@ -51,7 +52,7 @@ async def show_debtors(message: Message, session: AsyncSession) -> None:
             f"Jami: {format_number(total)} so'm\n"
             f"To'langan: {format_number(paid)} so'm\n"
             f"Qoldiq: {format_number(left)} so'm\n"
-            f"Holat: {order.status}\n"
+            f"Holat: {uzbek_order_status(order.status)}\n"
         )
 
     lines.append(f"Umumiy qarz: {format_number(total_debt)} so'm")

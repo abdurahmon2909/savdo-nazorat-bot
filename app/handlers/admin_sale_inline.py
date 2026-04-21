@@ -36,6 +36,7 @@ from app.states.admin_sale_inline_state import (
     AdminInlinePaymentState,
     AdminInlineSaleState,
 )
+from app.utils.statuses import uzbek_order_status
 
 router = Router()
 
@@ -164,6 +165,32 @@ async def show_sale_products(callback: CallbackQuery, state: FSMContext, session
         await callback.message.edit_text(
             f"{category.title()} bo'limi:\nMahsulot tanlang:",
             reply_markup=admin_products_keyboard(rows, "admin_sale"),
+        )
+    await callback.answer()
+
+
+async def show_payment_customers(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+    customers = await list_customers(session, limit=30)
+    if not customers:
+        if callback.message:
+            await callback.message.edit_text(
+                "Hozircha mijozlar yo'q.",
+                reply_markup=admin_back_home_keyboard(),
+            )
+        await callback.answer()
+        return
+
+    rows = [
+        {"id": c.id, "name": c.full_name, "phone": c.phone}
+        for c in customers
+    ]
+    await state.clear()
+    await state.set_state(AdminInlinePaymentState.customer)
+
+    if callback.message:
+        await callback.message.edit_text(
+            "To'lov uchun mijoz tanlang:",
+            reply_markup=admin_customers_keyboard(rows, "admin_payment"),
         )
     await callback.answer()
 
@@ -370,7 +397,7 @@ async def sale_choose_payment(callback: CallbackQuery, state: FSMContext) -> Non
     await state.set_state(AdminInlineSaleState.payment_type)
     if callback.message:
         await callback.message.edit_text(
-            build_cart_text(items),
+            build_cart_text(items) + "\n\nTo'lov turini tanlang:",
             reply_markup=admin_payment_type_keyboard("admin_sale"),
         )
     await callback.answer()
@@ -510,36 +537,10 @@ async def sale_confirm_yes(callback: CallbackQuery, state: FSMContext, session: 
             f"Mijoz: {data['customer_name']}\n"
             f"Jami: {fmt(data['total_amount'])} so'm\n"
             f"To'lov turi: {data['payment_type']}\n"
-            f"Holat: {order.status}",
+            f"Holat: {uzbek_order_status(order.status)}",
             reply_markup=admin_back_home_keyboard(),
         )
     await callback.answer("Saqlandi")
-
-
-async def show_payment_customers(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
-    customers = await list_customers(session, limit=30)
-    if not customers:
-        if callback.message:
-            await callback.message.edit_text(
-                "Hozircha mijozlar yo'q.",
-                reply_markup=admin_back_home_keyboard(),
-            )
-        await callback.answer()
-        return
-
-    rows = [
-        {"id": c.id, "name": c.full_name, "phone": c.phone}
-        for c in customers
-    ]
-    await state.clear()
-    await state.set_state(AdminInlinePaymentState.customer)
-
-    if callback.message:
-        await callback.message.edit_text(
-            "To'lov uchun mijoz tanlang:",
-            reply_markup=admin_customers_keyboard(rows, "admin_payment"),
-        )
-    await callback.answer()
 
 
 @router.callback_query(F.data == "admin_menu:payments")
@@ -677,7 +678,8 @@ async def payment_choose_order(callback: CallbackQuery, state: FSMContext, sessi
     if callback.message:
         await callback.message.edit_text(
             f"Buyurtma ID: {order.id}\n"
-            f"Qoldiq: {fmt(left)} so'm\n\n"
+            f"Qoldiq: {fmt(left)} so'm\n"
+            f"Holat: {uzbek_order_status(order.status)}\n\n"
             "To'lov turini tanlang:",
             reply_markup=admin_payment_amount_keyboard(order.id, fmt(left)),
         )
@@ -714,7 +716,7 @@ async def payment_full(callback: CallbackQuery, state: FSMContext, session: Asyn
             f"To'lov ID: {payment.id}\n"
             f"Buyurtma ID: {order.id}\n"
             f"To'lov summasi: {fmt(payment.amount)} so'm\n"
-            f"Yangi holat: {order.status}\n"
+            f"Yangi holat: {uzbek_order_status(order.status)}\n"
             f"Jami to'langan: {fmt(order.paid_amount)} so'm",
             reply_markup=admin_back_home_keyboard(),
         )
@@ -722,18 +724,30 @@ async def payment_full(callback: CallbackQuery, state: FSMContext, session: Asyn
 
 
 @router.callback_query(F.data.startswith("admin_payment_custom:"))
-async def payment_custom(callback: CallbackQuery, state: FSMContext) -> None:
+async def payment_custom(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
 
     order_id = int(callback.data.split(":")[1])
-    await state.update_data(order_id=order_id)
+    order = await get_order_by_id(session, order_id)
+    if order is None:
+        await callback.answer("Buyurtma topilmadi", show_alert=True)
+        return
+
+    total = Decimal(str(order.total_amount))
+    paid = Decimal(str(order.paid_amount))
+    left = total - paid
+
+    await state.update_data(order_id=order_id, order_left=str(left))
     await state.set_state(AdminInlinePaymentState.custom_amount)
 
     if callback.message:
         await callback.message.edit_text(
-            "Qisman to'lov summasini xabar qilib yuboring."
+            f"Qisman to'lov summasini yuboring.\n\n"
+            f"Buyurtma ID: {order.id}\n"
+            f"Qoldiq: {fmt(left)} so'm\n"
+            f"Holat: {uzbek_order_status(order.status)}"
         )
     await callback.answer()
 
@@ -761,7 +775,10 @@ async def payment_custom_amount_message(message: Message, state: FSMContext, ses
     left = total - paid
 
     if amount > left:
-        await message.answer(f"To'lov qoldiqdan katta bo'lishi mumkin emas. Qoldiq: {fmt(left)} so'm")
+        await message.answer(
+            f"To'lov qoldiqdan katta bo'lishi mumkin emas.\n"
+            f"Qoldiq: {fmt(left)} so'm"
+        )
         return
 
     payment = await create_payment(
@@ -777,7 +794,7 @@ async def payment_custom_amount_message(message: Message, state: FSMContext, ses
         f"To'lov ID: {payment.id}\n"
         f"Buyurtma ID: {order.id}\n"
         f"To'lov summasi: {fmt(payment.amount)} so'm\n"
-        f"Yangi holat: {order.status}\n"
+        f"Yangi holat: {uzbek_order_status(order.status)}\n"
         f"Jami to'langan: {fmt(order.paid_amount)} so'm",
         reply_markup=admin_back_home_keyboard(),
     )

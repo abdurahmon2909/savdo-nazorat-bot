@@ -18,12 +18,14 @@ from app.services.products import (
     get_product_by_name,
     list_products,
     search_products,
+    update_product_fields,
     update_product_price,
 )
 from app.states.product_manage_state import (
     AddProductStockState,
     ArchiveProductState,
     EditProductPriceState,
+    EditProductState,
 )
 from app.states.product_state import AddProductState, SearchProductState
 
@@ -46,7 +48,10 @@ def parse_decimal(value: str) -> Decimal | None:
     return number
 
 
-def format_number(value: Decimal | float | int) -> str:
+def format_number(value: Decimal | float | int | str | None) -> str:
+    if value is None:
+        return "kiritilmagan"
+
     if isinstance(value, Decimal):
         normalized = value.normalize()
         text = format(normalized, "f")
@@ -67,10 +72,33 @@ def build_product_lines(products: list) -> str:
             f"Nomi: {p.name}\n"
             f"Toifa: {p.category or 'kiritilmagan'}\n"
             f"Narx: {format_number(p.sell_price)} so'm\n"
+            f"Tannarx: {format_number(p.cost_price)}"
+            + ("" if p.cost_price is None else " so'm")
+            + "\n"
             f"Qoldiq: {format_number(p.stock_quantity)} {p.unit}\n"
             f"Holat: {holat}\n"
         )
     return "\n".join(lines)
+
+
+def build_single_product_text(product) -> str:
+    holat = "Faol" if product.is_active else "Arxiv"
+    tannarx = (
+        f"{format_number(product.cost_price)} so'm"
+        if product.cost_price is not None
+        else "kiritilmagan"
+    )
+    return (
+        f"Mahsulot ma'lumoti:\n\n"
+        f"ID: {product.id}\n"
+        f"Nomi: {product.name}\n"
+        f"Toifa: {product.category or 'kiritilmagan'}\n"
+        f"O'lchov birligi: {product.unit}\n"
+        f"Sotuv narxi: {format_number(product.sell_price)} so'm\n"
+        f"Tannarx: {tannarx}\n"
+        f"Qoldiq: {format_number(product.stock_quantity)} {product.unit}\n"
+        f"Holat: {holat}"
+    )
 
 
 @router.message(F.text == "📦 Mahsulotlar")
@@ -286,6 +314,176 @@ async def search_product_handler(
         reply_markup=products_menu_keyboard(),
     )
     await state.clear()
+
+
+@router.message(F.text == "✏️ Mahsulotni tahrirlash")
+async def edit_product_start(message: Message, state: FSMContext, session: AsyncSession):
+    if not is_admin(message):
+        return
+
+    products = await list_products(session, limit=30)
+    if not products:
+        await message.answer("Mahsulotlar yo'q.")
+        return
+
+    await state.set_state(EditProductState.product_id)
+    await message.answer(
+        build_product_lines(products)
+        + "\nTahrirlash uchun mahsulot ID raqamini yuboring.",
+        reply_markup=cancel_keyboard(),
+    )
+
+
+@router.message(EditProductState.product_id)
+async def edit_product_choose_product(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+):
+    if not is_admin(message):
+        return
+
+    text = (message.text or "").strip()
+    if not text.isdigit():
+        await message.answer("Iltimos, mahsulot ID raqamini yuboring.")
+        return
+
+    product = await get_product_by_id(session, int(text))
+    if product is None:
+        await message.answer("Bunday mahsulot topilmadi.")
+        return
+
+    await state.update_data(product_id=product.id)
+    await state.set_state(EditProductState.field)
+    await message.answer(
+        build_single_product_text(product)
+        + "\n\nQaysi maydonni o'zgartirmoqchisiz?\n"
+        "Variantlar:\n"
+        "1. nomi\n"
+        "2. toifa\n"
+        "3. birlik\n"
+        "4. narx\n"
+        "5. tannarx\n"
+        "6. qoldiq"
+    )
+
+
+@router.message(EditProductState.field)
+async def edit_product_choose_field(message: Message, state: FSMContext):
+    if not is_admin(message):
+        return
+
+    field_raw = (message.text or "").strip().lower()
+    mapping = {
+        "1": "name",
+        "nomi": "name",
+        "2": "category",
+        "toifa": "category",
+        "3": "unit",
+        "birlik": "unit",
+        "o'lchov": "unit",
+        "4": "sell_price",
+        "narx": "sell_price",
+        "5": "cost_price",
+        "tannarx": "cost_price",
+        "6": "stock_quantity",
+        "qoldiq": "stock_quantity",
+    }
+    field = mapping.get(field_raw)
+
+    if field is None:
+        await message.answer(
+            "Maydon noto'g'ri.\n"
+            "Variantlar: nomi, toifa, birlik, narx, tannarx, qoldiq"
+        )
+        return
+
+    await state.update_data(edit_field=field)
+    await state.set_state(EditProductState.value)
+
+    prompts = {
+        "name": "Yangi nomni yuboring.",
+        "category": "Yangi toifani yuboring.\nBo'sh qilmoqchi bo'lsangiz '-' yuboring.",
+        "unit": "Yangi o'lchov birligini yuboring.",
+        "sell_price": "Yangi sotuv narxini yuboring.",
+        "cost_price": "Yangi tannarxni yuboring.\nOlib tashlash uchun '-' yuboring.",
+        "stock_quantity": "Yangi qoldiqni yuboring.",
+    }
+    await message.answer(prompts[field])
+
+
+@router.message(EditProductState.value)
+async def edit_product_save(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+):
+    if not is_admin(message):
+        return
+
+    data = await state.get_data()
+    product = await get_product_by_id(session, int(data["product_id"]))
+    if product is None:
+        await state.clear()
+        await message.answer("Mahsulot topilmadi.", reply_markup=products_menu_keyboard())
+        return
+
+    field = data["edit_field"]
+    raw_value = (message.text or "").strip()
+
+    if field == "name":
+        if len(raw_value) < 2:
+            await message.answer("Nomi juda qisqa.")
+            return
+
+        existing = await get_product_by_name(session, raw_value)
+        if existing and existing.id != product.id:
+            await message.answer("Bu nom bilan boshqa mahsulot mavjud.")
+            return
+
+        product = await update_product_fields(session, product, name=raw_value)
+
+    elif field == "category":
+        category = None if raw_value == "-" else raw_value
+        product = await update_product_fields(session, product, category=category if category is not None else "")
+
+    elif field == "unit":
+        if len(raw_value) < 1:
+            await message.answer("Birlikni to'g'ri kiriting.")
+            return
+        product = await update_product_fields(session, product, unit=raw_value)
+
+    elif field == "sell_price":
+        value = parse_decimal(raw_value)
+        if value is None or value == 0:
+            await message.answer("Narxni to'g'ri kiriting.")
+            return
+        product = await update_product_fields(session, product, sell_price=value)
+
+    elif field == "cost_price":
+        if raw_value == "-":
+            product.cost_price = None
+            await session.commit()
+            await session.refresh(product)
+        else:
+            value = parse_decimal(raw_value)
+            if value is None:
+                await message.answer("Tannarxni to'g'ri kiriting.")
+                return
+            product = await update_product_fields(session, product, cost_price=value)
+
+    elif field == "stock_quantity":
+        value = parse_decimal(raw_value)
+        if value is None:
+            await message.answer("Qoldiqni to'g'ri kiriting.")
+            return
+        product = await update_product_fields(session, product, stock_quantity=value)
+
+    await state.clear()
+    await message.answer(
+        "Mahsulot yangilandi.\n\n" + build_single_product_text(product),
+        reply_markup=products_menu_keyboard(),
+    )
 
 
 @router.message(F.text == "✏️ Narxni o'zgartirish")

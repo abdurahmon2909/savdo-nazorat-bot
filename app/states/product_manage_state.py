@@ -14,3 +14,9 @@ class AddProductStockState(StatesGroup):
 class ArchiveProductState(StatesGroup):
     product_id = State()
     confirm = State()
+
+
+class EditProductState(StatesGroup):
+    product_id = State()
+    field = State()
+    value = State()

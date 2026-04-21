@@ -44,6 +44,40 @@ async def get_product_by_name(session: AsyncSession, name: str) -> Product | Non
     return result.scalar_one_or_none()
 
 
+async def update_product_fields(
+    session: AsyncSession,
+    product: Product,
+    *,
+    name: str | None = None,
+    category: str | None = None,
+    unit: str | None = None,
+    sell_price: Decimal | None = None,
+    cost_price: Decimal | None = None,
+    stock_quantity: Decimal | None = None,
+) -> Product:
+    if name is not None:
+        product.name = name.strip()
+
+    if category is not None:
+        product.category = category.strip().lower() if category.strip() else None
+
+    if unit is not None:
+        product.unit = unit.strip()
+
+    if sell_price is not None:
+        product.sell_price = sell_price
+
+    if cost_price is not None:
+        product.cost_price = cost_price
+
+    if stock_quantity is not None:
+        product.stock_quantity = stock_quantity
+
+    await session.commit()
+    await session.refresh(product)
+    return product
+
+
 async def update_product_price(
     session: AsyncSession,
     product: Product,

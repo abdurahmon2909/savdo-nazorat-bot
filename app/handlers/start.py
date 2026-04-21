@@ -22,6 +22,7 @@ from app.services.customers import (
 from app.services.order_requests import list_customer_order_requests
 from app.services.orders import list_customer_orders, list_customer_open_orders
 from app.services.users import create_or_update_user, get_user_by_telegram_id
+from app.utils.statuses import uzbek_order_status
 
 router = Router()
 
@@ -143,7 +144,7 @@ async def my_debt(message: Message, session: AsyncSession):
             f"Jami: {fmt(t)} so'm\n"
             f"To'langan: {fmt(p)} so'm\n"
             f"Qoldiq: {fmt(l)} so'm\n"
-            f"Holat: {o.status}\n"
+            f"Holat: {uzbek_order_status(o.status)}\n"
         )
 
     out.append(f"Jami qarz: {fmt(total)} so'm")
@@ -187,7 +188,7 @@ async def my_orders(message: Message, session: AsyncSession):
                 f"Sana: {fmt_dt(req.created_at)}\n"
                 f"Jami: {fmt(req.total_amount)} so'm\n"
                 f"To'lov turi: {req.payment_type}\n"
-                f"Holat: {req.status}\n"
+                f"Holat: {uzbek_order_status(req.status)}\n"
             )
 
     if orders:
@@ -203,7 +204,7 @@ async def my_orders(message: Message, session: AsyncSession):
                 f"Jami: {fmt(t)} so'm\n"
                 f"To'langan: {fmt(p)} so'm\n"
                 f"Qoldiq: {fmt(l)} so'm\n"
-                f"Holat: {o.status}\n"
+                f"Holat: {uzbek_order_status(o.status)}\n"
             )
 
     await message.answer("\n".join(out))
