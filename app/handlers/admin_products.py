@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.keyboards.admin_products_inline import products_main_keyboard, products_back_keyboard
+from app.keyboards.admin_products_inline import products_main_keyboard, product_back_keyboard
 from app.keyboards.common_inline import cancel_inline_keyboard
 from app.services.products import (
     add_product_stock,
