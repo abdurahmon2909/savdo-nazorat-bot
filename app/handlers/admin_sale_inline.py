@@ -103,18 +103,47 @@ def build_cart_text(items: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def append_item_to_cart(data: dict, qty: Decimal) -> list[dict]:
+def merge_item_into_cart(data: dict, qty: Decimal) -> list[dict]:
     items = data.get("items", []).copy()
+    current_product_id = int(data["current_product_id"])
+    stock = Decimal(str(data["current_product_stock"]))
+
+    for item in items:
+        if int(item["product_id"]) == current_product_id:
+            existing_qty = Decimal(str(item["quantity"]))
+            new_qty = existing_qty + qty
+            if new_qty > stock:
+                raise ValueError("Buncha mahsulot yo'q")
+            item["quantity"] = str(new_qty)
+            return items
+
     items.append(
         {
-            "product_id": int(data["current_product_id"]),
+            "product_id": current_product_id,
             "product_name": data["current_product_name"],
             "product_unit": data["current_product_unit"],
             "quantity": str(qty),
             "price": str(data["current_product_price"]),
+            "max_stock": str(stock),
         }
     )
     return items
+
+
+def recalculate_item_stock_limit(items: list[dict], item_index: int, stock: Decimal) -> None:
+    if 0 <= item_index < len(items):
+        items[item_index]["max_stock"] = str(stock)
+
+
+async def render_cart_message(target, items: list[dict]) -> None:
+    text = build_cart_text(items) if items else "Korzina bo'sh."
+    markup = admin_cart_keyboard("admin_sale", items)
+
+    if isinstance(target, CallbackQuery):
+        if target.message:
+            await target.message.edit_text(text, reply_markup=markup)
+    else:
+        await target.answer(text, reply_markup=markup)
 
 
 async def show_sale_customers(
@@ -384,21 +413,17 @@ async def sale_choose_qty_preset(
         return
 
     data = await state.get_data()
-    stock = Decimal(str(data["current_product_stock"]))
-    if qty > stock:
+    try:
+        items = merge_item_into_cart(data, qty)
+    except ValueError:
         await callback.answer("Buncha mahsulot yo'q", show_alert=True)
         return
 
-    items = append_item_to_cart(data, qty)
     await state.update_data(items=items)
     await state.set_state(AdminInlineSaleState.add_more)
 
-    if callback.message:
-        await callback.message.edit_text(
-            build_cart_text(items),
-            reply_markup=admin_cart_keyboard("admin_sale", len(items)),
-        )
-    await callback.answer()
+    await render_cart_message(callback, items)
+    await callback.answer("Korzinaga qo'shildi")
 
 
 @router.callback_query(F.data == "admin_sale_qty_custom")
@@ -424,22 +449,16 @@ async def sale_qty_custom_message(message: Message, state: FSMContext) -> None:
         return
 
     data = await state.get_data()
-    stock = Decimal(str(data["current_product_stock"]))
-    if qty > stock:
-        await message.answer(
-            f"Buncha mahsulot yo'q.\n"
-            f"Mavjud qoldiq: {fmt(stock)} {data['current_product_unit']}"
-        )
+    try:
+        items = merge_item_into_cart(data, qty)
+    except ValueError:
+        await message.answer("Buncha mahsulot yo'q.")
         return
 
-    items = append_item_to_cart(data, qty)
     await state.update_data(items=items)
     await state.set_state(AdminInlineSaleState.add_more)
 
-    await message.answer(
-        build_cart_text(items),
-        reply_markup=admin_cart_keyboard("admin_sale", len(items)),
-    )
+    await render_cart_message(message, items)
 
 
 @router.callback_query(F.data.startswith("admin_sale_remove:"))
@@ -463,24 +482,89 @@ async def sale_remove_item(callback: CallbackQuery, state: FSMContext) -> None:
 
     removed = items.pop(index)
     await state.update_data(items=items)
+    await state.set_state(AdminInlineSaleState.add_more)
 
-    if items:
-        await state.set_state(AdminInlineSaleState.add_more)
-        if callback.message:
-            await callback.message.edit_text(
-                build_cart_text(items),
-                reply_markup=admin_cart_keyboard("admin_sale", len(items)),
-            )
-        await callback.answer(f"{removed['product_name']} o'chirildi")
+    await render_cart_message(callback, items)
+    await callback.answer(f"{removed['product_name']} o'chirildi")
+
+
+@router.callback_query(F.data.startswith("admin_sale_minus:"))
+async def sale_minus_item(callback: CallbackQuery, state: FSMContext) -> None:
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
         return
 
+    data = await state.get_data()
+    items = data.get("items", []).copy()
+
+    try:
+        index = int(callback.data.split(":")[1])
+    except (IndexError, ValueError):
+        await callback.answer("Xatolik", show_alert=True)
+        return
+
+    if index < 0 or index >= len(items):
+        await callback.answer("Mahsulot topilmadi", show_alert=True)
+        return
+
+    item = items[index]
+    qty = Decimal(str(item["quantity"]))
+
+    if qty <= 1:
+        items.pop(index)
+    else:
+        item["quantity"] = str(qty - Decimal("1"))
+
+    await state.update_data(items=items)
     await state.set_state(AdminInlineSaleState.add_more)
-    if callback.message:
-        await callback.message.edit_text(
-            "Korzina bo'sh.",
-            reply_markup=admin_cart_keyboard("admin_sale", 0),
-        )
-    await callback.answer("Korzina bo'shadi")
+
+    await render_cart_message(callback, items)
+    await callback.answer("Kamaytirildi")
+
+
+@router.callback_query(F.data.startswith("admin_sale_plus:"))
+async def sale_plus_item(
+    callback: CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+
+    data = await state.get_data()
+    items = data.get("items", []).copy()
+
+    try:
+        index = int(callback.data.split(":")[1])
+    except (IndexError, ValueError):
+        await callback.answer("Xatolik", show_alert=True)
+        return
+
+    if index < 0 or index >= len(items):
+        await callback.answer("Mahsulot topilmadi", show_alert=True)
+        return
+
+    item = items[index]
+    product = await get_product_by_id(session, int(item["product_id"]))
+    if product is None:
+        await callback.answer("Mahsulot topilmadi", show_alert=True)
+        return
+
+    current_qty = Decimal(str(item["quantity"]))
+    current_stock = Decimal(str(product.stock_quantity))
+    recalculate_item_stock_limit(items, index, current_stock)
+
+    if current_qty + Decimal("1") > current_stock:
+        await callback.answer("Buncha mahsulot yo'q", show_alert=True)
+        return
+
+    item["quantity"] = str(current_qty + Decimal("1"))
+    await state.update_data(items=items)
+    await state.set_state(AdminInlineSaleState.add_more)
+
+    await render_cart_message(callback, items)
+    await callback.answer("Ko'paytirildi")
 
 
 @router.callback_query(F.data == "admin_sale_clear")
@@ -492,11 +576,7 @@ async def sale_clear_cart(callback: CallbackQuery, state: FSMContext) -> None:
     await state.update_data(items=[])
     await state.set_state(AdminInlineSaleState.add_more)
 
-    if callback.message:
-        await callback.message.edit_text(
-            "Korzina tozalandi.",
-            reply_markup=admin_cart_keyboard("admin_sale", 0),
-        )
+    await render_cart_message(callback, [])
     await callback.answer("Tozalandi")
 
 
@@ -541,12 +621,8 @@ async def sale_back_cart(callback: CallbackQuery, state: FSMContext) -> None:
 
     data = await state.get_data()
     items = data.get("items", [])
-    if callback.message:
-        await callback.message.edit_text(
-            build_cart_text(items),
-            reply_markup=admin_cart_keyboard("admin_sale", len(items)),
-        )
     await state.set_state(AdminInlineSaleState.add_more)
+    await render_cart_message(callback, items)
     await callback.answer()
 
 

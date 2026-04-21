@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
@@ -80,20 +82,40 @@ def admin_quantity_keyboard(prefix: str) -> InlineKeyboardMarkup:
     )
 
 
-def admin_cart_keyboard(prefix: str, items_count: int = 0) -> InlineKeyboardMarkup:
+def _fmt_qty(value: str | Decimal) -> str:
+    text = format(Decimal(str(value)), "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text
+
+
+def admin_cart_keyboard(prefix: str, items: list[dict]) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
 
-    for i in range(items_count):
+    for index, item in enumerate(items):
+        qty_text = _fmt_qty(item["quantity"])
         rows.append(
             [
                 InlineKeyboardButton(
-                    text=f"❌ {i + 1}-mahsulotni o'chirish",
-                    callback_data=f"{prefix}_remove:{i}",
-                )
+                    text=f"➖ {index + 1}",
+                    callback_data=f"{prefix}_minus:{index}",
+                ),
+                InlineKeyboardButton(
+                    text=f"{qty_text}",
+                    callback_data=f"{prefix}_noop",
+                ),
+                InlineKeyboardButton(
+                    text=f"➕ {index + 1}",
+                    callback_data=f"{prefix}_plus:{index}",
+                ),
+                InlineKeyboardButton(
+                    text="❌",
+                    callback_data=f"{prefix}_remove:{index}",
+                ),
             ]
         )
 
-    if items_count > 0:
+    if items:
         rows.append(
             [InlineKeyboardButton(text="🧹 Korzinani tozalash", callback_data=f"{prefix}_clear")]
         )
