@@ -18,6 +18,7 @@ from app.services.order_requests import (
 from app.services.products import get_product_by_id
 from app.services.stock_alerts import send_low_stock_alert
 from app.states.admin_request_state import ManageOrderRequestState
+from app.utils.statuses import uzbek_order_status
 
 router = Router()
 
@@ -57,7 +58,7 @@ async def show_order_requests(
             f"Mijoz: {customer_name}\n"
             f"Jami: {format_number(req.total_amount)} so'm\n"
             f"To'lov turi: {req.payment_type}\n"
-            f"Holat: {req.status}\n"
+            f"Holat: {uzbek_order_status(req.status)}\n"
         )
 
     await state.clear()
@@ -96,7 +97,7 @@ async def choose_order_request(
     if request.status != "pending":
         await state.clear()
         await message.answer(
-            f"Bu so'rov allaqachon ko'rib chiqilgan.\nHolat: {request.status}",
+            f"Bu so'rov allaqachon ko'rib chiqilgan.\nHolat: {uzbek_order_status(request.status)}",
             reply_markup=admin_menu_keyboard(),
         )
         return
@@ -109,6 +110,7 @@ async def choose_order_request(
         f"So'rov ID: {request.id}",
         f"Mijoz: {customer_name}",
         f"To'lov turi: {request.payment_type}",
+        f"Holat: {uzbek_order_status(request.status)}",
         f"Jami: {format_number(request.total_amount)} so'm",
         "",
         "Mahsulotlar:",
@@ -194,7 +196,7 @@ async def decide_order_request(
                 f"Buyurtmangiz tasdiqlandi.\n\n"
                 f"So'rov ID: {request.id}\n"
                 f"Buyurtma ID: {order.id}\n"
-                f"Holat: {order.status}"
+                f"Holat: {uzbek_order_status(order.status)}"
             )
         except Exception:
             pass
@@ -202,7 +204,8 @@ async def decide_order_request(
         await message.answer(
             f"So'rov tasdiqlandi.\n"
             f"So'rov ID: {request.id}\n"
-            f"Buyurtma ID: {order.id}",
+            f"Buyurtma ID: {order.id}\n"
+            f"Holat: {uzbek_order_status(order.status)}",
             reply_markup=admin_menu_keyboard(),
         )
         return

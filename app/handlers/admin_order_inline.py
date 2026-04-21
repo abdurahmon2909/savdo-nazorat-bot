@@ -11,6 +11,7 @@ from app.services.order_requests import (
     reject_order_request,
 )
 from app.states.admin_request_state import ManageOrderRequestState
+from app.utils.statuses import uzbek_order_status
 
 router = Router()
 
@@ -53,7 +54,7 @@ async def approve_request(callback: CallbackQuery, session: AsyncSession):
         f"✅ So'rov tasdiqlandi\n\n"
         f"So'rov ID: {request.id}\n"
         f"Buyurtma ID: {order.id}\n"
-        f"Holat: {order.status}"
+        f"Holat: {uzbek_order_status(order.status)}"
     )
 
     try:
@@ -61,7 +62,8 @@ async def approve_request(callback: CallbackQuery, session: AsyncSession):
             request.customer_telegram_id,
             f"✅ Buyurtmangiz tasdiqlandi.\n\n"
             f"So'rov ID: {request.id}\n"
-            f"Buyurtma ID: {order.id}"
+            f"Buyurtma ID: {order.id}\n"
+            f"Holat: {uzbek_order_status(order.status)}"
         )
     except Exception:
         pass

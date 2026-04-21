@@ -19,6 +19,7 @@ from app.services.reports import (
     get_monthly_report,
     get_monthly_top_products,
 )
+from app.utils.statuses import uzbek_order_status
 
 router = Router()
 
@@ -113,7 +114,7 @@ async def admin_requests_menu(callback: CallbackQuery, session: AsyncSession) ->
             f"Mijoz: {customer_name}\n"
             f"Jami: {fmt(req.total_amount)} so'm\n"
             f"To'lov turi: {req.payment_type}\n"
-            f"Holat: {req.status}\n"
+            f"Holat: {uzbek_order_status(req.status)}\n"
         )
 
     if callback.message:
@@ -157,7 +158,7 @@ async def admin_debtors_menu(callback: CallbackQuery, session: AsyncSession) -> 
             f"Buyurtma ID: {order.id}\n"
             f"Mijoz: {customer_name}\n"
             f"Qoldiq: {fmt(left)} so'm\n"
-            f"Holat: {order.status}\n"
+            f"Holat: {uzbek_order_status(order.status)}\n"
         )
 
     lines.append(f"Umumiy qarz: {fmt(total_debt)} so'm")
@@ -201,7 +202,7 @@ async def admin_history_menu(callback: CallbackQuery, session: AsyncSession) -> 
             f"Jami: {fmt(total)} so'm\n"
             f"To'langan: {fmt(paid)} so'm\n"
             f"Qoldiq: {fmt(left)} so'm\n"
-            f"Holat: {order.status}\n"
+            f"Holat: {uzbek_order_status(order.status)}\n"
         )
 
     if callback.message:
@@ -280,6 +281,7 @@ async def admin_overdue_menu(callback: CallbackQuery, session: AsyncSession) -> 
             f"Buyurtma ID: {order.id}\n"
             f"Mijoz: {name}\n"
             f"Qoldiq: {fmt(left)} so'm\n"
+            f"Holat: {uzbek_order_status(order.status)}\n"
             f"Kechikish: {days} kun\n"
         )
 
