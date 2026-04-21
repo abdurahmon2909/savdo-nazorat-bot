@@ -3,7 +3,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.keyboards.admin_panel_inline import admin_main_keyboard  # <-- o‘zgartirildi
+from app.keyboards.admin_panel_inline import admin_main_keyboard
 from app.keyboards.reply import cancel_keyboard, customers_menu_keyboard
 from app.services.customers import (
     create_customer,
@@ -30,7 +30,7 @@ async def back_to_admin_menu(message: Message, state: FSMContext) -> None:
     if not is_admin(message):
         return
     await state.clear()
-    await message.answer("Admin panelga qaytdingiz.", reply_markup=admin_main_keyboard())  # <-- o‘zgartirildi
+    await message.answer("Admin panelga qaytdingiz.", reply_markup=admin_main_keyboard())
 
 
 @router.message(F.text == "➕ Mijoz qo'shish")
@@ -49,7 +49,7 @@ async def cancel_any_state(message: Message, state: FSMContext) -> None:
     if not is_admin(message):
         return
     await state.clear()
-    await message.answer("Amal bekor qilindi.", reply_markup=admin_main_keyboard())  # <-- o‘zgartirildi
+    await message.answer("Amal bekor qilindi.", reply_markup=admin_main_keyboard())
 
 
 @router.message(AddCustomerState.full_name)
