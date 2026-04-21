@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.services.customers import get_customer_by_id
 from app.services.orders import list_overdue_orders
+from app.utils.statuses import uzbek_order_status
 
 router = Router()
 
@@ -45,7 +46,11 @@ async def overdue(message: Message, session: AsyncSession):
         days = (datetime.utcnow() - o.created_at).days
 
         out.append(
-            f"ID:{o.id}\n{name}\nQoldiq:{fmt(left)} so'm\n{days} kun\n"
+            f"ID: {o.id}\n"
+            f"Mijoz: {name}\n"
+            f"Qoldiq: {fmt(left)} so'm\n"
+            f"Holat: {uzbek_order_status(o.status)}\n"
+            f"Kechikish: {days} kun\n"
         )
 
     await message.answer("\n".join(out))

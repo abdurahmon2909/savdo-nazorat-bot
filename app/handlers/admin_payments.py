@@ -10,6 +10,7 @@ from app.services.customers import get_customer_by_id, list_customers
 from app.services.orders import get_order_by_id, list_customer_open_orders
 from app.services.payments import create_payment
 from app.states.payment_state import AddPaymentState
+from app.utils.statuses import uzbek_order_status
 
 router = Router()
 
@@ -95,7 +96,7 @@ async def choose_payment_customer(
             f"Jami: {format_number(total)} so'm\n"
             f"To'langan: {format_number(paid)} so'm\n"
             f"Qoldiq: {format_number(left)} so'm\n"
-            f"Holat: {order.status}\n"
+            f"Holat: {uzbek_order_status(order.status)}\n"
         )
 
     await state.update_data(
@@ -151,7 +152,8 @@ async def choose_payment_order(
     await message.answer(
         f"To'lov summasini yuboring.\n\n"
         f"Buyurtma ID: {order.id}\n"
-        f"Qoldiq: {format_number(left)} so'm"
+        f"Qoldiq: {format_number(left)} so'm\n"
+        f"Holat: {uzbek_order_status(order.status)}"
     )
 
 
@@ -230,6 +232,6 @@ async def confirm_payment(
         f"To'lov ID: {payment.id}\n"
         f"Buyurtma ID: {order.id}\n"
         f"To'lov summasi: {format_number(payment.amount)} so'm\n"
-        f"Yangi holat: {order.status}\n"
+        f"Yangi holat: {uzbek_order_status(order.status)}\n"
         f"Jami to'langan: {format_number(order.paid_amount)} so'm"
     )

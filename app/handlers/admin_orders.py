@@ -11,6 +11,7 @@ from app.services.orders import create_order
 from app.services.products import get_product_by_id, list_products, reduce_product_stock
 from app.services.stock_alerts import send_low_stock_alert
 from app.states.order_state import CreateOrderState
+from app.utils.statuses import uzbek_order_status
 
 router = Router()
 
@@ -386,5 +387,5 @@ async def confirm_order(
         f"Mijoz: {data['customer_name']}\n"
         f"{summary_text}\n"
         f"To'lov turi: {data['payment_type']}\n"
-        f"Holat: {order.status}"
+        f"Holat: {uzbek_order_status(order.status)}"
     )
