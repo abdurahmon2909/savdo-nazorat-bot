@@ -445,7 +445,11 @@ async def edit_product_save(
 
     elif field == "category":
         category = None if raw_value == "-" else raw_value
-        product = await update_product_fields(session, product, category=category if category is not None else "")
+        product = await update_product_fields(
+            session,
+            product,
+            category=category if category is not None else "",
+        )
 
     elif field == "unit":
         if len(raw_value) < 1:
