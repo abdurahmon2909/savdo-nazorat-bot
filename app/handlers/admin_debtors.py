@@ -1,8 +1,9 @@
 from decimal import Decimal
 from aiogram import F, Router
-from aiogram.types import Message
+from aiogram.types import CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.keyboards.common_inline import back_to_admin_home_keyboard
 from app.services.customers import get_customer_by_id
 from app.services.orders import list_debtor_orders
 from app.utils.helpers import is_admin, format_number
@@ -11,14 +12,21 @@ from app.utils.statuses import uzbek_order_status
 router = Router()
 
 
-@router.message(F.text == "📉 Qarzdorlar")
-async def show_debtors(message: Message, session: AsyncSession) -> None:
-    if not is_admin(message):
+@router.callback_query(F.data == "admin_menu:debtors")
+async def show_debtors(callback: CallbackQuery, session: AsyncSession):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
         return
+
     orders = await list_debtor_orders(session, limit=50)
     if not orders:
-        await message.answer("Hozircha qarzdorlar mavjud emas.")
+        await callback.message.edit_text(
+            "Hozircha qarzdorlar mavjud emas.",
+            reply_markup=back_to_admin_home_keyboard()
+        )
+        await callback.answer()
         return
+
     lines = ["📉 Qarzdor buyurtmalar:\n"]
     total_debt = Decimal("0")
     for order in orders:
@@ -37,4 +45,9 @@ async def show_debtors(message: Message, session: AsyncSession) -> None:
             f"Holat: {uzbek_order_status(order.status)}\n"
         )
     lines.append(f"Umumiy qarz: {format_number(total_debt)} so'm")
-    await message.answer("\n".join(lines))
+
+    await callback.message.edit_text(
+        "\n".join(lines),
+        reply_markup=back_to_admin_home_keyboard()
+    )
+    await callback.answer()

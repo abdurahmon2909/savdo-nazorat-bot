@@ -1,18 +1,11 @@
-from datetime import datetime
-from decimal import Decimal
 from aiogram import F, Router
 from aiogram.filters import CommandStart
-from aiogram.types import Contact, Message
+from aiogram.types import CallbackQuery, Contact, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.keyboards.admin_panel_inline import admin_main_keyboard
-from app.keyboards.reply import (
-    admin_menu_keyboard,
-    contact_keyboard,
-    main_menu_keyboard,
-    remove_keyboard,
-)
+from app.keyboards.common_inline import admin_main_menu_keyboard, customer_main_menu_keyboard
+from app.keyboards.reply import contact_keyboard, remove_keyboard
 from app.services.customers import (
     auto_link_customer_by_phone,
     get_customer_by_linked_telegram_id,
@@ -21,7 +14,7 @@ from app.services.customers import (
 from app.services.order_requests import list_customer_order_requests
 from app.services.orders import list_customer_orders, list_customer_open_orders
 from app.services.users import create_or_update_user, get_user_by_telegram_id
-from app.utils.helpers import fmt, log_error
+from app.utils.helpers import fmt, is_admin
 from app.utils.statuses import uzbek_order_status
 from app.utils.timezone import format_datetime_tashkent
 
@@ -53,13 +46,14 @@ async def start(message: Message, session: AsyncSession):
 
         if r != "admin":
             await auto_link_customer_by_phone(session, ex.phone, u.id)
-            await message.answer("Xush kelibsiz", reply_markup=main_menu_keyboard())
+            await message.answer("Xush kelibsiz!", reply_markup=remove_keyboard())
+            await message.answer("Asosiy menyu:", reply_markup=customer_main_menu_keyboard())
         else:
-            await message.answer("Xush kelibsiz", reply_markup=admin_menu_keyboard())
-            await message.answer("Admin panel:", reply_markup=admin_main_keyboard())
+            await message.answer("Xush kelibsiz!", reply_markup=remove_keyboard())
+            await message.answer("Admin panel:", reply_markup=admin_main_menu_keyboard())
         return
 
-    await message.answer("Raqamingizni yuboring", reply_markup=contact_keyboard())
+    await message.answer("Iltimos, telefon raqamingizni yuboring.", reply_markup=contact_keyboard())
 
 
 @router.message(F.contact)
@@ -83,22 +77,22 @@ async def contact(message: Message, session: AsyncSession):
 
     if r != "admin":
         await auto_link_customer_by_phone(session, c.phone_number, u.id)
-        await message.answer("Ro'yxatdan o'tdingiz", reply_markup=remove_keyboard())
-        await message.answer("Menu:", reply_markup=main_menu_keyboard())
+        await message.answer("Ro'yxatdan o'tdingiz!", reply_markup=remove_keyboard())
+        await message.answer("Asosiy menyu:", reply_markup=customer_main_menu_keyboard())
     else:
-        await message.answer("Ro'yxatdan o'tdingiz", reply_markup=remove_keyboard())
-        await message.answer("Admin panel:", reply_markup=admin_main_keyboard())
+        await message.answer("Ro'yxatdan o'tdingiz!", reply_markup=remove_keyboard())
+        await message.answer("Admin panel:", reply_markup=admin_main_menu_keyboard())
 
 
-@router.message(F.text == "💳 Mening qarzim")
-async def my_debt(message: Message, session: AsyncSession):
-    u = message.from_user
+@router.callback_query(F.data == "customer_menu:my_debt")
+async def my_debt(callback: CallbackQuery, session: AsyncSession):
+    u = callback.from_user
     if not u:
         return
 
     user = await get_user_by_telegram_id(session, u.id)
     if not user or not user.phone:
-        await message.answer("Avval ro'yxatdan o'ting.")
+        await callback.answer("Avval ro'yxatdan o'ting.", show_alert=True)
         return
 
     cust = await get_customer_by_linked_telegram_id(session, u.id)
@@ -106,24 +100,23 @@ async def my_debt(message: Message, session: AsyncSession):
         cust = await get_customer_by_phone(session, user.phone)
 
     if not cust:
-        await message.answer("Siz uchun mijoz kartasi topilmadi.")
+        await callback.answer("Siz uchun mijoz kartasi topilmadi.", show_alert=True)
         return
 
     orders = await list_customer_open_orders(session, cust.id)
 
     if not orders:
-        await message.answer("Qarz yo'q")
+        await callback.message.edit_text("Sizning qarzingiz yo'q.", reply_markup=customer_main_menu_keyboard())
+        await callback.answer()
         return
 
-    total = Decimal("0")
+    total = 0
     out = [f"{cust.full_name} uchun ochiq qarzlar:\n"]
-
     for o in orders:
         t = Decimal(str(o.total_amount))
         p = Decimal(str(o.paid_amount))
         l = t - p
         total += l
-
         out.append(
             f"Buyurtma ID: {o.id}\n"
             f"Sana: {format_datetime_tashkent(o.created_at)}\n"
@@ -132,20 +125,20 @@ async def my_debt(message: Message, session: AsyncSession):
             f"Qoldiq: {fmt(l)} so'm\n"
             f"Holat: {uzbek_order_status(o.status)}\n"
         )
-
     out.append(f"Jami qarz: {fmt(total)} so'm")
-    await message.answer("\n".join(out))
+    await callback.message.edit_text("\n".join(out), reply_markup=customer_main_menu_keyboard())
+    await callback.answer()
 
 
-@router.message(F.text == "📦 Buyurtmalarim")
-async def my_orders(message: Message, session: AsyncSession):
-    u = message.from_user
+@router.callback_query(F.data == "customer_menu:my_orders")
+async def my_orders(callback: CallbackQuery, session: AsyncSession):
+    u = callback.from_user
     if not u:
         return
 
     user = await get_user_by_telegram_id(session, u.id)
     if not user or not user.phone:
-        await message.answer("Avval ro'yxatdan o'ting.")
+        await callback.answer("Avval ro'yxatdan o'ting.", show_alert=True)
         return
 
     cust = await get_customer_by_linked_telegram_id(session, u.id)
@@ -153,18 +146,18 @@ async def my_orders(message: Message, session: AsyncSession):
         cust = await get_customer_by_phone(session, user.phone)
 
     if not cust:
-        await message.answer("Siz uchun mijoz topilmadi.")
+        await callback.answer("Siz uchun mijoz topilmadi.", show_alert=True)
         return
 
     orders = await list_customer_orders(session, cust.id)
     requests = await list_customer_order_requests(session, u.id, limit=20)
 
     if not orders and not requests:
-        await message.answer("Buyurtmalar yo'q")
+        await callback.message.edit_text("Sizning buyurtmalaringiz yo'q.", reply_markup=customer_main_menu_keyboard())
+        await callback.answer()
         return
 
     out = [f"{cust.full_name} buyurtmalari:\n"]
-
     if requests:
         out.append("So'rovlar:")
         for req in requests:
@@ -175,14 +168,12 @@ async def my_orders(message: Message, session: AsyncSession):
                 f"To'lov turi: {req.payment_type}\n"
                 f"Holat: {uzbek_order_status(req.status)}\n"
             )
-
     if orders:
         out.append("Tasdiqlangan buyurtmalar:")
         for o in orders:
             t = Decimal(str(o.total_amount))
             p = Decimal(str(o.paid_amount))
             l = t - p
-
             out.append(
                 f"Buyurtma ID: {o.id}\n"
                 f"Sana: {format_datetime_tashkent(o.created_at)}\n"
@@ -191,13 +182,31 @@ async def my_orders(message: Message, session: AsyncSession):
                 f"Qoldiq: {fmt(l)} so'm\n"
                 f"Holat: {uzbek_order_status(o.status)}\n"
             )
+    await callback.message.edit_text("\n".join(out), reply_markup=customer_main_menu_keyboard())
+    await callback.answer()
 
-    await message.answer("\n".join(out))
 
-
-@router.message(F.text == "☎️ Aloqa")
-async def contact_info(message: Message):
-    await message.answer(
-        "Aloqa uchun admin bilan bog'laning.\n"
-        "Keyingi bosqichda bu yerga aniq aloqa ma'lumoti qo'shamiz."
+@router.callback_query(F.data == "customer_menu:contact")
+async def contact_info(callback: CallbackQuery):
+    await callback.message.edit_text(
+        "Aloqa uchun admin bilan bog'laning.\nTelegram: @admin_username",
+        reply_markup=customer_main_menu_keyboard(),
     )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "customer_menu:home")
+async def customer_home(callback: CallbackQuery):
+    await callback.message.edit_text("Asosiy menyu:", reply_markup=customer_main_menu_keyboard())
+    await callback.answer()
+
+
+@router.callback_query(F.data == "global:cancel")
+async def global_cancel(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    user = callback.from_user
+    if role(user.id) == "admin":
+        await callback.message.edit_text("Admin panel:", reply_markup=admin_main_menu_keyboard())
+    else:
+        await callback.message.edit_text("Asosiy menyu:", reply_markup=customer_main_menu_keyboard())
+    await callback.answer("Amal bekor qilindi.")
