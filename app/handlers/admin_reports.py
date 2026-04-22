@@ -20,17 +20,18 @@ async def monthly_report(callback: CallbackQuery, session: AsyncSession):
     top_products = await get_monthly_top_products(session, year, month, limit=5)
 
     lines = [
-        f"{month}-{year} hisobot:\n",
-        f"Buyurtmalar soni: {report['order_count']}",
-        f"Jami savdo: {fmt(report['total'])} so'm",
-        f"To'langan: {fmt(report['paid'])} so'm",
-        f"Qarz: {fmt(report['unpaid'])} so'm",
+        f"📊 {month}-{year} hisobot:\n",
+        f"📦 Buyurtmalar soni: {report['order_count']}",
+        f"💰 Jami savdo: {fmt(report['total'])} so'm",
+        f"💵 To'langan: {fmt(report['paid'])} so'm",
+        f"📉 Qarz: {fmt(report['unpaid'])} so'm",
+        f"📈 Sof foyda: {fmt(report['profit'])} so'm",  # <-- yangi qator
         "",
-        "Tez sotilayotgan mahsulotlar:",
+        "🔥 Tez sotilayotgan mahsulotlar:",
     ]
     if top_products:
         for idx, item in enumerate(top_products, 1):
-            lines.append(f"{idx}. {item['name']} — {fmt(item['sold_qty'])} dona")
+            lines.append(f"{idx}. {item['name']} — {fmt(item['sold_qty'])} dona | Foyda: {fmt(item['profit'])} so'm")
     else:
         lines.append("Hozircha sotuv statistikasi yo'q.")
 

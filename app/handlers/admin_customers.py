@@ -1,155 +1,173 @@
-from aiogram import F, Router
-from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+import re
+from sqlalchemy import or_, select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
-from app.keyboards.admin_customers_inline import customers_main_keyboard
-from app.keyboards.common_inline import cancel_inline_keyboard, back_to_admin_home_keyboard
-from app.services.customers import (
-    create_customer,
-    get_customer_by_phone,
-    list_customers,
-    search_customers,
-)
-from app.states.customer_state import AddCustomerState, SearchCustomerState
-from app.utils.helpers import is_admin
-
-router = Router()
+from app.models.customer import Customer
+from app.models.order import Order
+from app.models.order_item import OrderItem
+from app.models.payment import Payment
 
 
-@router.callback_query(F.data == "admin_menu:customers")
-async def customers_menu(callback: CallbackQuery, state: FSMContext):
-    if not is_admin(callback):
-        await callback.answer("Ruxsat yo'q", show_alert=True)
-        return
-    await state.clear()
-    await callback.message.edit_text("Mijozlar bo'limi:", reply_markup=customers_main_keyboard())
-    await callback.answer()
+def normalize_phone(phone: str) -> str:
+    """Telefon raqamni yagona formatga keltirish: +998xxxxxxxxx"""
+    phone = re.sub(r'\D', '', phone)
+    if phone.startswith('998') and len(phone) == 12:
+        return f'+{phone}'
+    if len(phone) == 9:
+        return f'+998{phone}'
+    if phone.startswith('+998') and len(phone) == 13:
+        return phone
+    return phone
 
 
-@router.callback_query(F.data == "admin_customers:add")
-async def add_customer_start(callback: CallbackQuery, state: FSMContext):
-    if not is_admin(callback):
-        await callback.answer("Ruxsat yo'q", show_alert=True)
-        return
-    await state.set_state(AddCustomerState.full_name)
-    await callback.message.edit_text(
-        "Yangi mijozning ism-familiyasini yuboring.\n\nMasalan: Ali Valiyev",
-        reply_markup=cancel_inline_keyboard(),
+async def create_customer(
+        session: AsyncSession,
+        full_name: str,
+        phone: str,
+        address: str | None = None,
+        note: str | None = None,
+        status: str = "ishonchli",
+) -> Customer:
+    customer = Customer(
+        full_name=full_name.strip(),
+        phone=normalize_phone(phone),
+        address=address.strip() if address else None,
+        note=note.strip() if note else None,
+        status=status,
     )
-    await callback.answer()
+    session.add(customer)
+    await session.commit()
+    await session.refresh(customer)
+    return customer
 
 
-@router.message(AddCustomerState.full_name)
-async def add_customer_full_name(message: Message, state: FSMContext):
-    if not is_admin(message):
-        return
-    full_name = (message.text or "").strip()
-    if len(full_name) < 3:
-        await message.answer("Ism-familiya juda qisqa.", reply_markup=cancel_inline_keyboard())
-        return
-    await state.update_data(full_name=full_name)
-    await state.set_state(AddCustomerState.phone)
-    await message.answer("Telefon raqamini yuboring.\nMasalan: +998901234567", reply_markup=cancel_inline_keyboard())
+async def get_customer_by_id(session: AsyncSession, customer_id: int) -> Customer | None:
+    result = await session.execute(select(Customer).where(Customer.id == customer_id))
+    return result.scalar_one_or_none()
 
 
-@router.message(AddCustomerState.phone)
-async def add_customer_phone(message: Message, state: FSMContext, session: AsyncSession):
-    if not is_admin(message):
-        return
-    phone = (message.text or "").strip().replace(" ", "")
-    if len(phone) < 9:
-        await message.answer("Telefon raqam to'g'ri emas.", reply_markup=cancel_inline_keyboard())
-        return
-    existing = await get_customer_by_phone(session, phone)
-    if existing:
-        await message.answer("Bu raqam allaqachon mavjud.", reply_markup=cancel_inline_keyboard())
-        return
-    await state.update_data(phone=phone)
-    await state.set_state(AddCustomerState.address)
-    await message.answer("Manzilni yuboring (yoki '-' qoldiring).", reply_markup=cancel_inline_keyboard())
+async def get_customer_by_phone(session: AsyncSession, phone: str) -> Customer | None:
+    phone = normalize_phone(phone)
+    result = await session.execute(select(Customer).where(Customer.phone == phone))
+    return result.scalar_one_or_none()
 
 
-@router.message(AddCustomerState.address)
-async def add_customer_address(message: Message, state: FSMContext):
-    if not is_admin(message):
-        return
-    address = (message.text or "").strip()
-    await state.update_data(address=None if address == "-" else address)
-    await state.set_state(AddCustomerState.note)
-    await message.answer("Izoh yuboring (yoki '-' qoldiring).", reply_markup=cancel_inline_keyboard())
+async def get_customer_by_linked_telegram_id(
+        session: AsyncSession,
+        telegram_id: int,
+) -> Customer | None:
+    result = await session.execute(select(Customer).where(Customer.linked_telegram_id == telegram_id))
+    return result.scalar_one_or_none()
 
 
-@router.message(AddCustomerState.note)
-async def add_customer_note(message: Message, state: FSMContext, session: AsyncSession):
-    if not is_admin(message):
-        return
-    note = (message.text or "").strip()
-    data = await state.get_data()
-    customer = await create_customer(
-        session=session,
-        full_name=data["full_name"],
-        phone=data["phone"],
-        address=data.get("address"),
-        note=None if note == "-" else note,
-        status="ishonchli",
+async def link_customer_to_telegram(
+        session: AsyncSession,
+        customer: Customer,
+        telegram_id: int,
+) -> Customer:
+    customer.linked_telegram_id = telegram_id
+    await session.commit()
+    await session.refresh(customer)
+    return customer
+
+
+async def auto_link_customer_by_phone(
+        session: AsyncSession,
+        phone: str,
+        telegram_id: int,
+) -> Customer | None:
+    phone = normalize_phone(phone)
+    customer = await get_customer_by_phone(session, phone)
+    if customer is None:
+        return None
+    if customer.linked_telegram_id != telegram_id:
+        customer.linked_telegram_id = telegram_id
+        await session.commit()
+        await session.refresh(customer)
+    return customer
+
+
+async def list_customers(session: AsyncSession, limit: int = 1000, offset: int = 0) -> list[Customer]:
+    result = await session.execute(
+        select(Customer)
+        .order_by(Customer.id.desc())
+        .offset(offset)
+        .limit(limit)
     )
-    await state.clear()
-    await message.answer(
-        f"Mijoz qo'shildi:\nID: {customer.id}\nIsm: {customer.full_name}\nTelefon: {customer.phone}",
-        reply_markup=customers_main_keyboard(),
+    return list(result.scalars().all())
+
+
+async def search_customers(session: AsyncSession, query: str, limit: int = 20) -> list[Customer]:
+    q = query.strip()
+    result = await session.execute(
+        select(Customer)
+        .where(
+            or_(
+                Customer.full_name.ilike(f"%{q}%"),
+                Customer.phone.ilike(f"%{q}%"),
+            )
+        )
+        .order_by(Customer.id.desc())
+        .limit(limit)
     )
+    return list(result.scalars().all())
 
 
-@router.callback_query(F.data == "admin_customers:list")
-async def customers_list(callback: CallbackQuery, session: AsyncSession):
-    if not is_admin(callback):
-        await callback.answer("Ruxsat yo'q", show_alert=True)
-        return
-    customers = await list_customers(session, limit=20)
-    if not customers:
-        await callback.message.edit_text("Mijozlar yo'q.", reply_markup=customers_main_keyboard())
-        await callback.answer()
-        return
-    lines = ["Mijozlar:\n"]
-    for c in customers:
-        lines.append(f"ID: {c.id}\n{c.full_name}\nTel: {c.phone}\nHolat: {c.status}\n")
-    await callback.message.edit_text("\n".join(lines), reply_markup=customers_main_keyboard())
-    await callback.answer()
+async def update_customer_field(
+        session: AsyncSession,
+        customer_id: int,
+        field: str,
+        new_value: str | None,
+) -> Customer | None:
+    """Mijozning bir maydonini yangilash"""
+    customer = await get_customer_by_id(session, customer_id)
+    if not customer:
+        return None
+
+    if field == "full_name":
+        customer.full_name = new_value.strip() if new_value else customer.full_name
+    elif field == "phone":
+        customer.phone = normalize_phone(new_value) if new_value else customer.phone
+    elif field == "address":
+        customer.address = new_value.strip() if new_value else None
+    elif field == "note":
+        customer.note = new_value.strip() if new_value else None
+    elif field == "status":
+        customer.status = new_value if new_value in ["ishonchli", "qarzdor", "bloklangan", "muntazam"] else "ishonchli"
+    else:
+        return None
+
+    await session.commit()
+    await session.refresh(customer)
+    return customer
 
 
-@router.callback_query(F.data == "admin_customers:search")
-async def search_customer_start(callback: CallbackQuery, state: FSMContext):
-    if not is_admin(callback):
-        await callback.answer("Ruxsat yo'q", show_alert=True)
-        return
-    await state.set_state(SearchCustomerState.query)
-    await callback.message.edit_text("Qidiruv uchun ism yoki telefon yuboring.", reply_markup=cancel_inline_keyboard())
-    await callback.answer()
-
-
-@router.message(SearchCustomerState.query)
-async def search_customer_query(message: Message, state: FSMContext, session: AsyncSession):
-    if not is_admin(message):
-        return
-    query = (message.text or "").strip()
-    if len(query) < 2:
-        await message.answer("Kamida 2 ta belgi kiriting.", reply_markup=cancel_inline_keyboard())
-        return
-    customers = await search_customers(session, query, limit=20)
-    if not customers:
-        await message.answer("Topilmadi.", reply_markup=customers_main_keyboard())
-        await state.clear()
-        return
-    lines = ["Topilganlar:\n"]
-    for c in customers:
-        lines.append(f"{c.id}. {c.full_name} | {c.phone}")
-    await message.answer("\n".join(lines), reply_markup=customers_main_keyboard())
-    await state.clear()
-
-
-@router.callback_query(F.data == "admin_customers:cancel")
-async def cancel_customers(callback: CallbackQuery, state: FSMContext):
-    await state.clear()
-    await callback.message.edit_text("Amal bekor qilindi.", reply_markup=customers_main_keyboard())
-    await callback.answer()
+async def delete_customer_by_id(session: AsyncSession, customer_id: int) -> bool:
+    """Mijozni va unga tegishli barcha ma'lumotlarni o'chirish"""
+    try:
+        # Avval to'lovlarni o'chirish
+        await session.execute(
+            delete(Payment).where(Payment.order_id.in_(
+                select(Order.id).where(Order.customer_id == customer_id)
+            ))
+        )
+        # OrderItem larni o'chirish
+        await session.execute(
+            delete(OrderItem).where(OrderItem.order_id.in_(
+                select(Order.id).where(Order.customer_id == customer_id)
+            ))
+        )
+        # Buyurtmalarni o'chirish
+        await session.execute(
+            delete(Order).where(Order.customer_id == customer_id)
+        )
+        # Mijozni o'chirish
+        result = await session.execute(
+            delete(Customer).where(Customer.id == customer_id)
+        )
+        await session.commit()
+        return result.rowcount > 0
+    except IntegrityError:
+        await session.rollback()
+        return False

@@ -10,3 +10,7 @@ class AddCustomerState(StatesGroup):
 
 class SearchCustomerState(StatesGroup):
     query = State()
+
+
+class EditCustomerState(StatesGroup):
+    waiting_for_value = State()
