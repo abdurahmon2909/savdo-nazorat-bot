@@ -104,7 +104,7 @@ async def show_products_by_category(callback: CallbackQuery, state: FSMContext, 
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
     category = callback.data.split(":", 2)[2]
-    products = await list_products_by_category(session, category, limit=1000)
+    products = await list_products_by_category(session, category, limit=1000, only_active=False)
     if not products:
         await callback.message.edit_text(f"'{category}' kategoriyasida mahsulot yo'q.",
                                          reply_markup=product_back_keyboard("list"))
@@ -120,7 +120,7 @@ async def show_products_by_category(callback: CallbackQuery, state: FSMContext, 
     await state.update_data(current_category=category, all_products=products, current_page=page,
                             total_pages=total_pages, current_action="list")
     await callback.message.edit_text(
-        f"📂 {category} kategoriyasi (sahifa {page}/{total_pages}):",
+        f"📂 {category} (sahifa {page}/{total_pages}):",
         reply_markup=products_list_keyboard(page_products, page, total_pages, category=category, action="list")
     )
     await callback.answer()
@@ -786,10 +786,18 @@ async def edit_product_save(message: Message, state: FSMContext, session: AsyncS
         await message.answer(f"Xatolik: {e}", reply_markup=cancel_inline_keyboard())
 
 
-# ==================== ORQAGA ====================
+# ==================== ORQAGA (BACK) – UMUMIY ====================
 
 @router.callback_query(F.data == "admin_products:back")
 async def products_back(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.message.edit_text("Mahsulotlar bo'limi:", reply_markup=products_main_keyboard())
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("admin_products:list_back"))
+async def list_back(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    await show_categories_for_action(callback, state, await self.get_session(), "list")
