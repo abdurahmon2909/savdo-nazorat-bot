@@ -1,5 +1,7 @@
+from decimal import Decimal
 from aiogram import F, Router
 from aiogram.filters import CommandStart
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Contact, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -110,7 +112,7 @@ async def my_debt(callback: CallbackQuery, session: AsyncSession):
         await callback.answer()
         return
 
-    total = 0
+    total = Decimal("0")
     out = [f"{cust.full_name} uchun ochiq qarzlar:\n"]
     for o in orders:
         t = Decimal(str(o.total_amount))
