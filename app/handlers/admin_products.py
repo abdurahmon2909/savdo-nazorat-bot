@@ -173,13 +173,11 @@ async def edit_back_categories(callback: CallbackQuery, state: FSMContext, sessi
 
 
 @router.callback_query(F.data == "admin_products:edit_back")
-async def edit_back(callback: CallbackQuery, state: FSMContext):
+async def edit_back(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
-    await callback.message.edit_text("Mahsulotlar bo'limi:", reply_markup=products_main_keyboard())
-    await state.clear()
-    await callback.answer()
+    await show_categories_for_action(callback, state, session, "edit")
 
 
 # ==================== QOLDIQ QO'SHISH (ADD STOCK) ====================
@@ -222,6 +220,14 @@ async def add_stock_products_by_category(callback: CallbackQuery, state: FSMCont
 
 @router.callback_query(F.data == "admin_products:add_stock_back_categories")
 async def add_stock_back_categories(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    await show_categories_for_action(callback, state, session, "add_stock")
+
+
+@router.callback_query(F.data == "admin_products:add_stock_back")
+async def add_stock_back(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
@@ -274,6 +280,14 @@ async def archive_back_categories(callback: CallbackQuery, state: FSMContext, se
     await show_categories_for_action(callback, state, session, "archive")
 
 
+@router.callback_query(F.data == "admin_products:archive_back")
+async def archive_back(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    await show_categories_for_action(callback, state, session, "archive")
+
+
 # ==================== NARX (EDIT PRICE) ====================
 
 @router.callback_query(F.data == "admin_products:edit_price")
@@ -314,6 +328,14 @@ async def edit_price_products_by_category(callback: CallbackQuery, state: FSMCon
 
 @router.callback_query(F.data == "admin_products:edit_price_back_categories")
 async def edit_price_back_categories(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    await show_categories_for_action(callback, state, session, "edit_price")
+
+
+@router.callback_query(F.data == "admin_products:edit_price_back")
+async def edit_price_back(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
@@ -795,9 +817,9 @@ async def products_back(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("admin_products:list_back"))
-async def list_back(callback: CallbackQuery, state: FSMContext):
+@router.callback_query(F.data == "admin_products:list_back")
+async def list_back(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
-    await show_categories_for_action(callback, state, await self.get_session(), "list")
+    await show_categories_for_action(callback, state, session, "list")
