@@ -2,21 +2,18 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
 def categories_keyboard(categories: list[str]) -> InlineKeyboardMarkup:
-    rows: list[list[InlineKeyboardButton]] = []
+    """Kategoriyalar ro'yxati (2 ustunli)"""
+    rows = []
+    # 2 ustunli qilib chiqarish
+    for i in range(0, len(categories), 2):
+        row = []
+        row.append(InlineKeyboardButton(text=categories[i].title(), callback_data=f"catalog_category:{categories[i]}"))
+        if i + 1 < len(categories):
+            row.append(InlineKeyboardButton(text=categories[i + 1].title(),
+                                            callback_data=f"catalog_category:{categories[i + 1]}"))
+        rows.append(row)
 
-    for category in categories:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text=category.title(),
-                    callback_data=f"catalog_category:{category}",
-                )
-            ]
-        )
-
-    rows.append(
-        [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="catalog_cancel")]
-    )
+    rows.append([InlineKeyboardButton(text="❌ Bekor qilish", callback_data="catalog_cancel")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

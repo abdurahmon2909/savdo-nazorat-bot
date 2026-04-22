@@ -21,7 +21,6 @@ from app.services.products import (
     list_active_categories,
     list_products,
     list_products_by_category,
-    list_products_by_category_paginated,
     search_products,
     update_product_fields,
     update_product_price,
@@ -49,22 +48,22 @@ async def products_menu(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@router.callback_query(F.data == "admin_products:categories")
-async def show_categories(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
-    if not is_admin(callback):
-        await callback.answer("Ruxsat yo'q", show_alert=True)
-        return
+# ==================== KATEGORIYALAR (UMUMIY) ====================
+
+async def show_categories_for_action(callback: CallbackQuery, state: FSMContext, session: AsyncSession, action: str):
+    """Har bir action uchun kategoriyalarni ko'rsatish"""
     categories = await list_active_categories(session)
     if not categories:
-        await callback.message.edit_text("Hech qanday kategoriya mavjud emas.", reply_markup=product_back_keyboard())
+        await callback.message.edit_text("Hech qanday kategoriya mavjud emas.",
+                                         reply_markup=product_back_keyboard(action))
         await callback.answer()
         return
 
-    await state.update_data(categories=categories, cat_page=1)
+    await state.update_data(categories=categories, cat_page=1, current_action=action)
     total_pages = ceil(len(categories) / 8)
     await callback.message.edit_text(
-        "📂 Kategoriyalar:",
-        reply_markup=products_categories_keyboard(categories, page=1, total_pages=total_pages)
+        f"📂 Kategoriyalar ({action} uchun):",
+        reply_markup=products_categories_keyboard(categories, page=1, total_pages=total_pages, action=action)
     )
     await callback.answer()
 
@@ -74,29 +73,41 @@ async def categories_page(callback: CallbackQuery, state: FSMContext, session: A
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
-    page = int(callback.data.split(":")[2])
+    parts = callback.data.split(":")
+    action = parts[2]
+    page = int(parts[3])
     data = await state.get_data()
     categories = data.get("categories", [])
     if not categories:
         categories = await list_active_categories(session)
     total_pages = ceil(len(categories) / 8)
     await callback.message.edit_text(
-        "📂 Kategoriyalar:",
-        reply_markup=products_categories_keyboard(categories, page=page, total_pages=total_pages)
+        f"📂 Kategoriyalar ({action} uchun):",
+        reply_markup=products_categories_keyboard(categories, page=page, total_pages=total_pages, action=action)
     )
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("admin_products:category:"))
+# ==================== KATEGORIYALAR (LIST) ====================
+
+@router.callback_query(F.data == "admin_products:categories")
+async def show_categories(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    await show_categories_for_action(callback, state, session, "list")
+
+
+@router.callback_query(F.data.startswith("admin_products:list_category:"))
 async def show_products_by_category(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
-    category = callback.data.split(":", 1)[1]
+    category = callback.data.split(":", 2)[2]
     products = await list_products_by_category(session, category, limit=1000)
     if not products:
         await callback.message.edit_text(f"'{category}' kategoriyasida mahsulot yo'q.",
-                                         reply_markup=product_back_keyboard())
+                                         reply_markup=product_back_keyboard("list"))
         await callback.answer()
         return
 
@@ -107,7 +118,7 @@ async def show_products_by_category(callback: CallbackQuery, state: FSMContext, 
     page_products = products[start:end]
 
     await state.update_data(current_category=category, all_products=products, current_page=page,
-                            total_pages=total_pages)
+                            total_pages=total_pages, current_action="list")
     await callback.message.edit_text(
         f"📂 {category} kategoriyasi (sahifa {page}/{total_pages}):",
         reply_markup=products_list_keyboard(page_products, page, total_pages, category=category, action="list")
@@ -115,16 +126,213 @@ async def show_products_by_category(callback: CallbackQuery, state: FSMContext, 
     await callback.answer()
 
 
+# ==================== TAHRIRLASH (EDIT) ====================
+
+@router.callback_query(F.data == "admin_products:edit")
+async def edit_product_start(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    await show_categories_for_action(callback, state, session, "edit")
+
+
+@router.callback_query(F.data.startswith("admin_products:edit_category:"))
+async def edit_products_by_category(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    category = callback.data.split(":", 2)[2]
+    products = await list_products_by_category(session, category, limit=1000, only_active=False)
+    if not products:
+        await callback.message.edit_text(f"'{category}' kategoriyasida mahsulot yo'q.",
+                                         reply_markup=product_back_keyboard("edit"))
+        await callback.answer()
+        return
+
+    total_pages = ceil(len(products) / ITEMS_PER_PAGE)
+    page = 1
+    start = (page - 1) * ITEMS_PER_PAGE
+    end = start + ITEMS_PER_PAGE
+    page_products = products[start:end]
+
+    await state.update_data(current_category=category, all_products=products, current_page=page,
+                            total_pages=total_pages, current_action="edit")
+    await callback.message.edit_text(
+        f"✏️ Tahrirlash: {category} (sahifa {page}/{total_pages}):",
+        reply_markup=products_list_keyboard(page_products, page, total_pages, category=category, action="edit")
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "admin_products:edit_back_categories")
+async def edit_back_categories(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    await show_categories_for_action(callback, state, session, "edit")
+
+
+@router.callback_query(F.data == "admin_products:edit_back")
+async def edit_back(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    await callback.message.edit_text("Mahsulotlar bo'limi:", reply_markup=products_main_keyboard())
+    await state.clear()
+    await callback.answer()
+
+
+# ==================== QOLDIQ QO'SHISH (ADD STOCK) ====================
+
+@router.callback_query(F.data == "admin_products:add_stock")
+async def add_stock_start(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    await show_categories_for_action(callback, state, session, "add_stock")
+
+
+@router.callback_query(F.data.startswith("admin_products:add_stock_category:"))
+async def add_stock_products_by_category(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    category = callback.data.split(":", 2)[2]
+    products = await list_products_by_category(session, category, limit=1000, only_active=False)
+    if not products:
+        await callback.message.edit_text(f"'{category}' kategoriyasida mahsulot yo'q.",
+                                         reply_markup=product_back_keyboard("add_stock"))
+        await callback.answer()
+        return
+
+    total_pages = ceil(len(products) / ITEMS_PER_PAGE)
+    page = 1
+    start = (page - 1) * ITEMS_PER_PAGE
+    end = start + ITEMS_PER_PAGE
+    page_products = products[start:end]
+
+    await state.update_data(current_category=category, all_products=products, current_page=page,
+                            total_pages=total_pages, current_action="add_stock")
+    await callback.message.edit_text(
+        f"📥 Qoldiq qo'shish: {category} (sahifa {page}/{total_pages}):",
+        reply_markup=products_list_keyboard(page_products, page, total_pages, category=category, action="add_stock")
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "admin_products:add_stock_back_categories")
+async def add_stock_back_categories(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    await show_categories_for_action(callback, state, session, "add_stock")
+
+
+# ==================== ARXIVLASH (ARCHIVE) ====================
+
+@router.callback_query(F.data == "admin_products:archive")
+async def archive_product_start(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    await show_categories_for_action(callback, state, session, "archive")
+
+
+@router.callback_query(F.data.startswith("admin_products:archive_category:"))
+async def archive_products_by_category(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    category = callback.data.split(":", 2)[2]
+    products = await list_products_by_category(session, category, limit=1000, only_active=False)
+    if not products:
+        await callback.message.edit_text(f"'{category}' kategoriyasida mahsulot yo'q.",
+                                         reply_markup=product_back_keyboard("archive"))
+        await callback.answer()
+        return
+
+    total_pages = ceil(len(products) / ITEMS_PER_PAGE)
+    page = 1
+    start = (page - 1) * ITEMS_PER_PAGE
+    end = start + ITEMS_PER_PAGE
+    page_products = products[start:end]
+
+    await state.update_data(current_category=category, all_products=products, current_page=page,
+                            total_pages=total_pages, current_action="archive")
+    await callback.message.edit_text(
+        f"🗃 Arxivlash: {category} (sahifa {page}/{total_pages}):",
+        reply_markup=products_list_keyboard(page_products, page, total_pages, category=category, action="archive")
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "admin_products:archive_back_categories")
+async def archive_back_categories(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    await show_categories_for_action(callback, state, session, "archive")
+
+
+# ==================== NARX (EDIT PRICE) ====================
+
+@router.callback_query(F.data == "admin_products:edit_price")
+async def edit_price_start(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    await show_categories_for_action(callback, state, session, "edit_price")
+
+
+@router.callback_query(F.data.startswith("admin_products:edit_price_category:"))
+async def edit_price_products_by_category(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    category = callback.data.split(":", 2)[2]
+    products = await list_products_by_category(session, category, limit=1000, only_active=False)
+    if not products:
+        await callback.message.edit_text(f"'{category}' kategoriyasida mahsulot yo'q.",
+                                         reply_markup=product_back_keyboard("edit_price"))
+        await callback.answer()
+        return
+
+    total_pages = ceil(len(products) / ITEMS_PER_PAGE)
+    page = 1
+    start = (page - 1) * ITEMS_PER_PAGE
+    end = start + ITEMS_PER_PAGE
+    page_products = products[start:end]
+
+    await state.update_data(current_category=category, all_products=products, current_page=page,
+                            total_pages=total_pages, current_action="edit_price")
+    await callback.message.edit_text(
+        f"💰 Narx o'zgartirish: {category} (sahifa {page}/{total_pages}):",
+        reply_markup=products_list_keyboard(page_products, page, total_pages, category=category, action="edit_price")
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "admin_products:edit_price_back_categories")
+async def edit_price_back_categories(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    await show_categories_for_action(callback, state, session, "edit_price")
+
+
+# ==================== PAGINATION (UMUMIY) ====================
+
 @router.callback_query(F.data.startswith("admin_products:page:"))
 async def products_page(callback: CallbackQuery, state: FSMContext):
     if not is_admin(callback):
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
-    page = int(callback.data.split(":")[2])
+    parts = callback.data.split(":")
+    action = parts[2]
+    page = int(parts[3])
     data = await state.get_data()
     all_products = data.get("all_products", [])
     category = data.get("current_category")
-    action = data.get("current_action", "list")
 
     if not all_products:
         await callback.answer("Mahsulotlar topilmadi", show_alert=True)
@@ -137,11 +345,13 @@ async def products_page(callback: CallbackQuery, state: FSMContext):
 
     await state.update_data(current_page=page)
     await callback.message.edit_text(
-        f"📂 {category if category else 'Barcha mahsulotlar'} (sahifa {page}/{total_pages}):",
+        f"{'📂 ' + category if category else '📋 Mahsulotlar'} (sahifa {page}/{total_pages}):",
         reply_markup=products_list_keyboard(page_products, page, total_pages, category=category, action=action)
     )
     await callback.answer()
 
+
+# ==================== BARCHA MAHSULOTLAR ====================
 
 @router.callback_query(F.data == "admin_products:list_all")
 async def list_all_products(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
@@ -168,6 +378,8 @@ async def list_all_products(callback: CallbackQuery, state: FSMContext, session:
     )
     await callback.answer()
 
+
+# ==================== MAHSULOTNI KO'RISH ====================
 
 @router.callback_query(F.data.startswith("admin_products:view:"))
 async def view_product(callback: CallbackQuery, session: AsyncSession):
@@ -196,6 +408,8 @@ async def view_product(callback: CallbackQuery, session: AsyncSession):
     await callback.message.edit_text(text, reply_markup=product_back_keyboard())
     await callback.answer()
 
+
+# ==================== QO'SHISH ====================
 
 @router.callback_query(F.data == "admin_products:add")
 async def add_product_start(callback: CallbackQuery, state: FSMContext):
@@ -295,6 +509,8 @@ async def add_product_stock_quantity(message: Message, state: FSMContext, sessio
     )
 
 
+# ==================== QIDIRISH ====================
+
 @router.callback_query(F.data == "admin_products:search")
 async def search_product_start(callback: CallbackQuery, state: FSMContext):
     if not is_admin(callback):
@@ -334,31 +550,7 @@ async def search_product_handler(message: Message, state: FSMContext, session: A
     await state.clear()
 
 
-@router.callback_query(F.data == "admin_products:edit_price")
-async def edit_price_start(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
-    if not is_admin(callback):
-        await callback.answer("Ruxsat yo'q", show_alert=True)
-        return
-    products = await list_products(session, limit=1000)
-    if not products:
-        await callback.message.edit_text("Mahsulotlar yo'q.", reply_markup=products_main_keyboard())
-        await callback.answer()
-        return
-
-    total_pages = ceil(len(products) / ITEMS_PER_PAGE)
-    page = 1
-    start = (page - 1) * ITEMS_PER_PAGE
-    end = start + ITEMS_PER_PAGE
-    page_products = products[start:end]
-
-    await state.update_data(all_products=products, current_page=page, total_pages=total_pages,
-                            current_action="edit_price")
-    await callback.message.edit_text(
-        f"💰 Narxini o'zgartirish (sahifa {page}/{total_pages}):",
-        reply_markup=products_list_keyboard(page_products, page, total_pages, category=None, action="edit_price")
-    )
-    await callback.answer()
-
+# ==================== NARX (EDIT PRICE) – TANLASH ====================
 
 @router.callback_query(F.data.startswith("admin_products:edit_price_choose:"))
 async def edit_price_choose_product(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
@@ -401,31 +593,7 @@ async def edit_price_save(message: Message, state: FSMContext, session: AsyncSes
     )
 
 
-@router.callback_query(F.data == "admin_products:add_stock")
-async def add_stock_start(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
-    if not is_admin(callback):
-        await callback.answer("Ruxsat yo'q", show_alert=True)
-        return
-    products = await list_products(session, limit=1000)
-    if not products:
-        await callback.message.edit_text("Mahsulotlar yo'q.", reply_markup=products_main_keyboard())
-        await callback.answer()
-        return
-
-    total_pages = ceil(len(products) / ITEMS_PER_PAGE)
-    page = 1
-    start = (page - 1) * ITEMS_PER_PAGE
-    end = start + ITEMS_PER_PAGE
-    page_products = products[start:end]
-
-    await state.update_data(all_products=products, current_page=page, total_pages=total_pages,
-                            current_action="add_stock")
-    await callback.message.edit_text(
-        f"📥 Qoldiq qo'shish (sahifa {page}/{total_pages}):",
-        reply_markup=products_list_keyboard(page_products, page, total_pages, category=None, action="add_stock")
-    )
-    await callback.answer()
-
+# ==================== QOLDIQ QO'SHISH – TANLASH ====================
 
 @router.callback_query(F.data.startswith("admin_products:add_stock_choose:"))
 async def add_stock_choose_product(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
@@ -468,30 +636,7 @@ async def add_stock_save(message: Message, state: FSMContext, session: AsyncSess
     )
 
 
-@router.callback_query(F.data == "admin_products:archive")
-async def archive_product_start(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
-    if not is_admin(callback):
-        await callback.answer("Ruxsat yo'q", show_alert=True)
-        return
-    products = await list_products(session, limit=1000)
-    if not products:
-        await callback.message.edit_text("Mahsulotlar yo'q.", reply_markup=products_main_keyboard())
-        await callback.answer()
-        return
-
-    total_pages = ceil(len(products) / ITEMS_PER_PAGE)
-    page = 1
-    start = (page - 1) * ITEMS_PER_PAGE
-    end = start + ITEMS_PER_PAGE
-    page_products = products[start:end]
-
-    await state.update_data(all_products=products, current_page=page, total_pages=total_pages, current_action="archive")
-    await callback.message.edit_text(
-        f"🗃 Arxivlash (sahifa {page}/{total_pages}):",
-        reply_markup=products_list_keyboard(page_products, page, total_pages, category=None, action="archive")
-    )
-    await callback.answer()
-
+# ==================== ARXIVLASH – TANLASH ====================
 
 @router.callback_query(F.data.startswith("admin_products:archive_choose:"))
 async def archive_product_choose(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
@@ -535,30 +680,7 @@ async def archive_product_confirm(message: Message, state: FSMContext, session: 
     await message.answer(f"✅ Mahsulot arxivlandi: {product.name}", reply_markup=products_main_keyboard())
 
 
-@router.callback_query(F.data == "admin_products:edit")
-async def edit_product_start(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
-    if not is_admin(callback):
-        await callback.answer("Ruxsat yo'q", show_alert=True)
-        return
-    products = await list_products(session, limit=1000)
-    if not products:
-        await callback.message.edit_text("Mahsulotlar yo'q.", reply_markup=products_main_keyboard())
-        await callback.answer()
-        return
-
-    total_pages = ceil(len(products) / ITEMS_PER_PAGE)
-    page = 1
-    start = (page - 1) * ITEMS_PER_PAGE
-    end = start + ITEMS_PER_PAGE
-    page_products = products[start:end]
-
-    await state.update_data(all_products=products, current_page=page, total_pages=total_pages, current_action="edit")
-    await callback.message.edit_text(
-        f"✏️ Tahrirlash (sahifa {page}/{total_pages}):",
-        reply_markup=products_list_keyboard(page_products, page, total_pages, category=None, action="edit")
-    )
-    await callback.answer()
-
+# ==================== TAHRIRLASH – TANLASH ====================
 
 @router.callback_query(F.data.startswith("admin_products:edit_choose:"))
 async def edit_product_choose(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
@@ -663,6 +785,8 @@ async def edit_product_save(message: Message, state: FSMContext, session: AsyncS
     except Exception as e:
         await message.answer(f"Xatolik: {e}", reply_markup=cancel_inline_keyboard())
 
+
+# ==================== ORQAGA ====================
 
 @router.callback_query(F.data == "admin_products:back")
 async def products_back(callback: CallbackQuery, state: FSMContext):
