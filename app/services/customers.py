@@ -7,6 +7,8 @@ from app.models.customer import Customer
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.payment import Payment
+from app.models.order_request import OrderRequest
+from app.models.order_request_item import OrderRequestItem
 
 
 def normalize_phone(phone: str) -> str:
@@ -147,28 +149,46 @@ async def update_customer_field(
 async def delete_customer_by_id(session: AsyncSession, customer_id: int) -> bool:
     """Mijozni va unga tegishli barcha ma'lumotlarni o'chirish"""
     try:
-        # Avval to'lovlarni o'chirish
+        # 1. OrderRequestItem larni o'chirish (so'rovdagi mahsulotlar)
+        await session.execute(
+            delete(OrderRequestItem).where(OrderRequestItem.order_request_id.in_(
+                select(OrderRequest.id).where(OrderRequest.customer_id == customer_id)
+            ))
+        )
+
+        # 2. OrderRequest larni o'chirish (buyurtma so'rovlari)
+        await session.execute(
+            delete(OrderRequest).where(OrderRequest.customer_id == customer_id)
+        )
+
+        # 3. To'lovlarni o'chirish
         await session.execute(
             delete(Payment).where(Payment.order_id.in_(
                 select(Order.id).where(Order.customer_id == customer_id)
             ))
         )
-        # OrderItem larni o'chirish
+
+        # 4. OrderItem larni o'chirish (buyurtma ichidagi mahsulotlar)
         await session.execute(
             delete(OrderItem).where(OrderItem.order_id.in_(
                 select(Order.id).where(Order.customer_id == customer_id)
             ))
         )
-        # Buyurtmalarni o'chirish
+
+        # 5. Buyurtmalarni o'chirish
         await session.execute(
             delete(Order).where(Order.customer_id == customer_id)
         )
-        # Mijozni o'chirish
+
+        # 6. Mijozni o'chirish
         result = await session.execute(
             delete(Customer).where(Customer.id == customer_id)
         )
+
         await session.commit()
         return result.rowcount > 0
-    except IntegrityError:
+
+    except Exception as e:
         await session.rollback()
+        print(f"O'chirish xatosi: {e}")
         return False
