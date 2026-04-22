@@ -27,10 +27,8 @@ def products_categories_keyboard(categories: list[str], page: int = 1, total_pag
     # 2 ustunli qilib chiqarish
     for i in range(0, len(cats), 2):
         row = []
-        # Birinchi kategoriya
         row.append(
             InlineKeyboardButton(text=f"📂 {cats[i]}", callback_data=f"admin_products:{action}_category:{cats[i]}"))
-        # Ikkinchi kategoriya (agar mavjud bo'lsa)
         if i + 1 < len(cats):
             row.append(InlineKeyboardButton(text=f"📂 {cats[i + 1]}",
                                             callback_data=f"admin_products:{action}_category:{cats[i + 1]}"))
@@ -93,10 +91,9 @@ def products_list_keyboard(
     if nav_buttons:
         rows.append(nav_buttons)
 
-    # Orqaga tugmasi
+    # Orqaga tugmasi (endi hamma joyda "Orqaga")
     if category:
-        rows.append(
-            [InlineKeyboardButton(text="⬅️ Kategoriyalar", callback_data=f"admin_products:{action}_back_categories")])
+        rows.append([InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"admin_products:{action}_back_categories")])
     else:
         rows.append([InlineKeyboardButton(text="⬅️ Orqaga", callback_data="admin_products:back")])
 
