@@ -93,7 +93,7 @@ def products_list_keyboard(
 
     # Orqaga tugmasi (endi hamma joyda "Orqaga")
     if category:
-        rows.append([InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"admin_products:{action}_back_categories")])
+        rows.append([InlineKeyboardButton(text="⬅️ Orqaga", callback_data="admin_products:back_to_categories")])
     else:
         rows.append([InlineKeyboardButton(text="⬅️ Orqaga", callback_data="admin_products:back")])
 

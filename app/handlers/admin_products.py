@@ -823,3 +823,10 @@ async def list_back(callback: CallbackQuery, state: FSMContext, session: AsyncSe
         await callback.answer("Ruxsat yo'q", show_alert=True)
         return
     await show_categories_for_action(callback, state, session, "list")
+
+@router.callback_query(F.data == "admin_products:back_to_categories")
+async def back_to_categories(callback: CallbackQuery, state: FSMContext, session: AsyncSession):
+    if not is_admin(callback):
+        await callback.answer("Ruxsat yo'q", show_alert=True)
+        return
+    await show_categories_for_action(callback, state, session, "list")
