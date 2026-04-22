@@ -33,9 +33,8 @@ async def get_customer_by_id(session: AsyncSession, customer_id: int) -> Custome
 
 
 async def get_customer_by_phone(session: AsyncSession, phone: str) -> Customer | None:
-    result = await session.execute(
-        select(Customer).where(Customer.phone == phone.strip())
-    )
+    phone = normalize_phone(phone)
+    result = await session.execute(select(Customer).where(Customer.phone == phone))
     return result.scalar_one_or_none()
 
 
@@ -100,3 +99,13 @@ async def search_customers(session: AsyncSession, query: str, limit: int = 20) -
         .limit(limit)
     )
     return list(result.scalars().all())
+def normalize_phone(phone: str) -> str:
+    """Telefon raqamni yagona formatga keltirish: +998xxxxxxxxx"""
+    phone = re.sub(r'\D', '', phone)  # faqat raqamlar
+    if phone.startswith('998') and len(phone) == 12:
+        return f'+{phone}'
+    if len(phone) == 9:
+        return f'+998{phone}'
+    if phone.startswith('+998') and len(phone) == 13:
+        return phone
+    return phone
