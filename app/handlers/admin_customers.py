@@ -160,7 +160,7 @@ async def view_customer(callback: CallbackQuery, state: FSMContext, session: Asy
         f"Manzil: {customer.address or '❌ kiritilmagan'}\n"
         f"Izoh: {customer.note or '❌ kiritilmagan'}\n"
         f"Holat: {customer.status}\n"
-        f"Telegram ID: {customer.linked_telegram_id or '❌ bog'lanmagan'}"
+        f"Telegram ID: {customer.linked_telegram_id or '❌ boglanmagan'}"
     )
     await callback.message.edit_text(text, reply_markup=customer_detail_keyboard(customer.id))
     await callback.answer()
