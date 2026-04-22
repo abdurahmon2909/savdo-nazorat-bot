@@ -37,7 +37,7 @@ def customers_list_keyboard(customers: list, page: int, total_pages: int, action
 
 
 def customer_detail_keyboard(customer_id: int) -> InlineKeyboardMarkup:
-    """Mijoz ma'lumotlarini ko'rsatish uchun tugmalar"""
+    """Mijoz ma'lumotlarini ko'rsatish uchun tugmalar (tahrirlash va o'chirish)"""
     buttons = [
         [InlineKeyboardButton(text="✏️ Ism-familiya",
                               callback_data=f"admin_customers:edit_field:{customer_id}:full_name")],
