@@ -59,14 +59,26 @@ async def link_customer_to_telegram(
     return customer
 
 
-async def auto_link_customer_by_phone(
-    session: AsyncSession,
-    phone: str,
-    telegram_id: int,
-) -> Customer | None:
+async def auto_link_customer_by_phone(session: AsyncSession, phone: str, telegram_id: int):
+    phone = normalize_phone(phone)
+
+    # To'liq moslik
     customer = await get_customer_by_phone(session, phone)
-    if customer is None:
+
+    # Agar topilmasa, 9 xonali versiyasini tekshirish
+    if not customer and phone.startswith('+998'):
+        short_phone = phone[4:]  # +998901234567 -> 901234567
+        customer = await get_customer_by_phone(session, short_phone)
+
+    if not customer:
         return None
+
+    if customer.linked_telegram_id != telegram_id:
+        customer.linked_telegram_id = telegram_id
+        await session.commit()
+        await session.refresh(customer)
+
+    return customer
 
     if customer.linked_telegram_id != telegram_id:
         customer.linked_telegram_id = telegram_id
