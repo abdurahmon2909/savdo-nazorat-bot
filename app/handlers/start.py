@@ -191,7 +191,7 @@ async def my_orders(callback: CallbackQuery, session: AsyncSession):
 @router.callback_query(F.data == "customer_menu:contact")
 async def contact_info(callback: CallbackQuery):
     await callback.message.edit_text(
-        "Aloqa uchun admin bilan bog'laning.\nTelegram: @admin_username",
+        "Aloqa uchun admin bilan bog'laning.\nTelegram: @abdurahmon_2909",
         reply_markup=customer_main_menu_keyboard(),
     )
     await callback.answer()
